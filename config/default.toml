@@ -1,0 +1,63 @@
+# TRX/USDT Tracker Default Configuration
+# This file contains sensible defaults for all configuration options
+# Override any setting by creating a config.toml file or using environment variables
+
+[database]
+url = "postgresql://postgres:password@localhost:5432/tron_tracker"
+max_connections = 20
+min_connections = 5
+acquire_timeout = 30
+
+[redis]
+url = "redis://localhost:6379"
+max_connections = 10
+default_ttl = 300
+
+[blockchain]
+start_block = 62800000  # Recent block number, adjust as needed
+batch_size = 100
+scan_interval = 3  # seconds
+
+[[blockchain.nodes]]
+name = "TronGrid"
+url = "https://api.trongrid.io"
+priority = 1
+timeout = 30
+
+[[blockchain.nodes]]
+name = "GetBlock"
+url = "https://go.getblock.io"
+priority = 2
+timeout = 30
+
+[api]
+[api.rate_limit]
+requests_per_minute = 1000
+burst_size = 100
+
+[api.cors]
+allowed_origins = ["*"]
+allowed_methods = ["GET", "POST", "PUT", "DELETE"]
+allowed_headers = ["*"]
+
+[api.pagination]
+default_limit = 20
+max_limit = 100
+
+[notifications]
+[notifications.webhook]
+timeout = 30
+retry_attempts = 3
+retry_delay = 5
+max_payload_size = 1048576  # 1MB
+
+[notifications.websocket]
+max_connections = 10000
+ping_interval = 30
+message_buffer_size = 1000
+
+[auth]
+jwt_secret = "your-secret-key-change-in-production"
+token_expiry = 86400  # 24 hours
+api_key_length = 32
+
