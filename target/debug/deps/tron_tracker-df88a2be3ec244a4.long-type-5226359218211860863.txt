@@ -1,0 +1,2 @@
+fn(axum::extract::State<ApiState>) -> impl std::future::Future<Output = Result<axum::Json<api::ApiResponse<DashboardStats>>, ApiError>> {get_stats}
+fn(axum::extract::State<ApiState>) -> impl std::future::Future<Output = Result<axum::Json<api::ApiResponse<DashboardStats>>, ApiError>> {get_stats}: Handler<_, _>

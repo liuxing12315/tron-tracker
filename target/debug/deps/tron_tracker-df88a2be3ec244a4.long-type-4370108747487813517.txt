@@ -1,0 +1,2 @@
+fn() -> impl std::future::Future<Output = Result<axum::Json<api::ApiResponse<HealthStatus>>, ApiError>> {health_check}
+fn() -> impl std::future::Future<Output = Result<axum::Json<api::ApiResponse<HealthStatus>>, ApiError>> {health_check}: Handler<_, _>
