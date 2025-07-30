@@ -270,7 +270,7 @@ impl Scanner {
         // 检查是否是大额转账
         if self.is_large_transfer(transaction) {
             info!("Large transfer detected: {} {} from {} to {}", 
-                  transaction.amount, transaction.token, 
+                  transaction.value, transaction.token_symbol.as_ref().unwrap_or(&"TRX".to_string()), 
                   transaction.from_address, transaction.to_address);
             
             // 发送大额转账通知
@@ -292,9 +292,9 @@ impl Scanner {
     /// 检查是否是大额转账
     fn is_large_transfer(&self, transaction: &Transaction) -> bool {
         // 解析金额
-        if let Ok(amount) = transaction.amount.parse::<f64>() {
+        if let Ok(amount) = transaction.value.parse::<f64>() {
             // 根据代币类型设置不同的阈值
-            let threshold = match transaction.token.as_str() {
+            let threshold = match transaction.token_symbol.as_ref().map(|s| s.as_str()).unwrap_or("TRX") {
                 "USDT" => 10000.0, // 10,000 USDT
                 "TRX" => 1000000.0, // 1,000,000 TRX
                 _ => 100000.0, // 默认阈值
@@ -426,19 +426,23 @@ mod tests {
         let scanner = Scanner::new(config, db).unwrap();
 
         let transaction = Transaction {
+            id: uuid::Uuid::new_v4(),
             hash: "test_hash".to_string(),
             block_number: 12345,
+            block_hash: "test_block_hash".to_string(),
+            transaction_index: 0,
             from_address: "from_addr".to_string(),
             to_address: "to_addr".to_string(),
-            amount: "15000.0".to_string(),
-            token: "USDT".to_string(),
+            value: "15000.0".to_string(),
+            token_address: None,
+            token_symbol: Some("USDT".to_string()),
+            token_decimals: Some(6),
+            gas_used: Some(21000),
+            gas_price: Some("20".to_string()),
             status: TransactionStatus::Success,
             timestamp: chrono::Utc::now(),
-            gas_used: Some(21000),
-            gas_price: Some(20),
-            contract_address: None,
-            token_symbol: None,
-            token_decimals: None,
+            created_at: chrono::Utc::now(),
+            updated_at: chrono::Utc::now(),
         };
 
         assert!(scanner.is_large_transfer(&transaction));

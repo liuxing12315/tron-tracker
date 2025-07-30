@@ -101,6 +101,7 @@ pub struct EndpointUsage {
 }
 
 /// 认证服务
+#[derive(Clone)]
 pub struct AuthService {
     db: Arc<Database>,
     rate_limiter: Arc<RateLimiter>,
@@ -481,7 +482,21 @@ mod tests {
 
     #[test]
     fn test_api_key_generation() {
-        let auth_service = AuthService::new(Arc::new(Database::new("test").unwrap()));
+        // 创建模拟的数据库
+        use crate::core::config::DatabaseConfig;
+        let db_config = DatabaseConfig {
+            url: "postgresql://test:test@localhost/test".to_string(),
+            max_connections: 10,
+            min_connections: 1,
+            acquire_timeout: 30,
+        };
+        
+        // 由于测试环境可能没有数据库，我们直接测试密钥生成逻辑
+        let auth_service = AuthService {
+            db: Arc::new(Database::new(&db_config).await.unwrap()),
+            rate_limiter: Arc::new(RateLimiter::new()),
+        };
+        
         let key1 = auth_service.generate_api_key();
         let key2 = auth_service.generate_api_key();
 
@@ -493,7 +508,20 @@ mod tests {
 
     #[test]
     fn test_api_key_hashing() {
-        let auth_service = AuthService::new(Arc::new(Database::new("test").unwrap()));
+        // 创建模拟的数据库
+        use crate::core::config::DatabaseConfig;
+        let db_config = DatabaseConfig {
+            url: "postgresql://test:test@localhost/test".to_string(),
+            max_connections: 10,
+            min_connections: 1,
+            acquire_timeout: 30,
+        };
+        
+        let auth_service = AuthService {
+            db: Arc::new(Database::new(&db_config).await.unwrap()),
+            rate_limiter: Arc::new(RateLimiter::new()),
+        };
+        
         let raw_key = "test_key";
         let hash1 = auth_service.hash_api_key(raw_key);
         let hash2 = auth_service.hash_api_key(raw_key);

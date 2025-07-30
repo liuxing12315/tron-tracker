@@ -166,6 +166,17 @@ pub struct Block {
     pub created_at: DateTime<Utc>,
 }
 
+/// Block data from blockchain API
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BlockData {
+    pub number: u64,
+    pub hash: String,
+    pub parent_hash: String,
+    pub timestamp: u64,
+    pub transaction_count: u32,
+    pub transactions: Vec<Transaction>,
+}
+
 /// Unified query parameters for pagination and filtering
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct QueryParams {
@@ -207,6 +218,21 @@ pub struct MultiAddressQuery {
     pub end_time: Option<DateTime<Utc>>,
     pub limit: Option<u32>,
     pub offset: Option<u32>,
+}
+
+/// Transaction query parameters
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TransactionQuery {
+    pub address: Option<String>,
+    pub hash: Option<String>,
+    pub block_number: Option<i64>,
+    pub token_address: Option<String>,
+    pub start_time: Option<DateTime<Utc>>,
+    pub end_time: Option<DateTime<Utc>>,
+    pub limit: Option<u32>,
+    pub offset: Option<u32>,
+    pub sort_by: Option<String>,
+    pub sort_order: Option<SortOrder>,
 }
 
 /// WebSocket message types

@@ -52,28 +52,33 @@ impl Database {
         sqlx::query!(
             r#"
             INSERT INTO transactions (
-                hash, block_number, from_address, to_address, amount, token,
-                status, timestamp, gas_used, gas_price, contract_address,
-                token_symbol, token_decimals
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+                id, hash, block_number, block_hash, transaction_index, from_address, to_address, 
+                value, token_address, token_symbol, token_decimals, status, timestamp, 
+                gas_used, gas_price, created_at, updated_at
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
             ON CONFLICT (hash) DO UPDATE SET
                 status = EXCLUDED.status,
                 gas_used = EXCLUDED.gas_used,
-                gas_price = EXCLUDED.gas_price
+                gas_price = EXCLUDED.gas_price,
+                updated_at = EXCLUDED.updated_at
             "#,
+            transaction.id,
             transaction.hash,
-            transaction.block_number as i64,
+            transaction.block_number,
+            transaction.block_hash,
+            transaction.transaction_index,
             transaction.from_address,
             transaction.to_address,
-            transaction.amount,
-            transaction.token,
+            transaction.value,
+            transaction.token_address,
+            transaction.token_symbol,
+            transaction.token_decimals,
             status_str,
             transaction.timestamp,
             transaction.gas_used,
             transaction.gas_price,
-            transaction.contract_address,
-            transaction.token_symbol,
-            transaction.token_decimals
+            transaction.created_at,
+            transaction.updated_at
         )
         .execute(&self.pool)
         .await?;
@@ -670,6 +675,98 @@ impl Database {
             active_api_keys: stats.active_api_keys.unwrap_or(0) as u64,
         })
     }
+
+    // ==================== 辅助方法 ====================
+
+    /// 将数据库行转换为 Transaction 对象
+    fn row_to_transaction(&self, row: sqlx::postgres::PgRow) -> Result<Transaction> {
+        use sqlx::Row;
+        
+        let status_str: String = row.get("status");
+        let status = match status_str.as_str() {
+            "success" => TransactionStatus::Success,
+            "failed" => TransactionStatus::Failed,
+            "pending" => TransactionStatus::Pending,
+            _ => TransactionStatus::Pending,
+        };
+
+        Ok(Transaction {
+            id: row.get("id"),
+            hash: row.get("hash"),
+            block_number: row.get("block_number"),
+            block_hash: row.get("block_hash"),
+            transaction_index: row.get("transaction_index"),
+            from_address: row.get("from_address"),
+            to_address: row.get("to_address"),
+            value: row.get("value"),
+            token_address: row.get("token_address"),
+            token_symbol: row.get("token_symbol"),
+            token_decimals: row.get("token_decimals"),
+            gas_used: row.get("gas_used"),
+            gas_price: row.get("gas_price"),
+            status,
+            timestamp: row.get("timestamp"),
+            created_at: row.get("created_at"),
+            updated_at: row.get("updated_at"),
+        })
+    }
+
+    /// 执行交易查询
+    async fn execute_transaction_query(&self, sql: &str) -> Result<Vec<Transaction>> {
+        let rows = sqlx::query(sql)
+            .fetch_all(&self.pool)
+            .await?;
+
+        let mut transactions = Vec::new();
+        for row in rows {
+            transactions.push(self.row_to_transaction(row)?);
+        }
+
+        Ok(transactions)
+    }
+
+    /// 执行计数查询
+    async fn execute_count_query(&self, sql: &str) -> Result<u64> {
+        let row = sqlx::query(sql)
+            .fetch_one(&self.pool)
+            .await?;
+
+        Ok(row.get::<i64, _>(0) as u64)
+    }
+
+    /// 执行多地址查询
+    async fn execute_multi_address_query(&self, sql: &str, addresses: &[String]) -> Result<Vec<Transaction>> {
+        // 简化实现，实际应该使用参数化查询
+        let mut query = sqlx::query(sql);
+        
+        // 添加地址参数
+        for address in addresses {
+            query = query.bind(address).bind(address);
+        }
+
+        let rows = query.fetch_all(&self.pool).await?;
+
+        let mut transactions = Vec::new();
+        for row in rows {
+            transactions.push(self.row_to_transaction(row)?);
+        }
+
+        Ok(transactions)
+    }
+
+    /// 执行多地址计数查询
+    async fn execute_multi_address_count_query(&self, sql: &str, addresses: &[String]) -> Result<u64> {
+        // 简化实现，实际应该使用参数化查询
+        let mut query = sqlx::query(sql);
+        
+        // 添加地址参数
+        for address in addresses {
+            query = query.bind(address).bind(address);
+        }
+
+        let row = query.fetch_one(&self.pool).await?;
+        Ok(row.get::<i64, _>(0) as u64)
+    }
 }
 
 /// 数据库统计信息
@@ -679,6 +776,20 @@ pub struct DatabaseStats {
     pub total_blocks: u64,
     pub total_webhooks: u64,
     pub active_api_keys: u64,
+}
+
+/// 地址统计信息
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct AddressStatistics {
+    pub address: String,
+    pub total_transactions: u64,
+    pub successful_transactions: u64,
+    pub sent_transactions: u64,
+    pub received_transactions: u64,
+    pub total_trx_received: String,
+    pub total_usdt_received: String,
+    pub first_transaction: Option<chrono::DateTime<chrono::Utc>>,
+    pub last_transaction: Option<chrono::DateTime<chrono::Utc>>,
 }
 
 #[cfg(test)]

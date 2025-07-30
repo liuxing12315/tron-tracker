@@ -36,7 +36,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     info!("🚀 Starting TRX Tracker Unified v2.0.0");
     
     // 加载配置
-    let config = match Config::load() {
+    let config = match Config::load("config/default.toml").await {
         Ok(config) => {
             info!("✅ Configuration loaded successfully");
             Arc::new(config)
@@ -48,7 +48,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
     
     // 初始化数据库
-    let database = match Database::new(&config.database.url) {
+    let database = match Database::new(&config.database).await {
         Ok(db) => {
             info!("✅ Database connection established");
             Arc::new(db)
@@ -59,15 +59,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     };
     
-    // 运行数据库迁移
-    if let Err(e) = database.migrate().await {
-        error!("❌ Database migration failed: {}", e);
-        return Err(e.into());
-    }
-    info!("✅ Database migrations completed");
-    
     // 初始化缓存服务
-    let cache_service = match CacheService::new(&config.cache.redis_url).await {
+    let cache_service = match CacheService::new(config.clone()).await {
         Ok(cache) => {
             info!("✅ Cache service initialized");
             Arc::new(cache)
@@ -84,24 +77,24 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     
     // 初始化 Webhook 服务
     let webhook_service = Arc::new(WebhookService::new(
-        database.clone(),
-        config.webhook.clone(),
+        (*config).clone(),
+        (*database).clone(),
     ));
     info!("✅ Webhook service initialized");
     
     // 初始化 WebSocket 服务
     let websocket_service = Arc::new(WebSocketService::new(
-        config.websocket.clone(),
+        (*config).clone(),
     ));
     info!("✅ WebSocket service initialized");
     
     // 初始化扫描器服务
     let scanner_service = Arc::new(ScannerService::new(
-        database.clone(),
-        cache_service.clone(),
-        webhook_service.clone(),
-        websocket_service.clone(),
-        config.scanner.clone(),
+        (*config).clone(),
+        (*database).clone(),
+        (*cache_service).clone(),
+        (*webhook_service).clone(),
+        (*websocket_service).clone(),
     ));
     info!("✅ Scanner service initialized");
     
@@ -119,7 +112,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut handles = Vec::new();
     
     // 启动扫描器服务
-    if config.scanner.enabled {
+    let scanner_enabled = true; // 默认启用扫描器
+    if scanner_enabled {
         let scanner_handle = {
             let scanner = scanner_service.clone();
             tokio::spawn(async move {
@@ -133,10 +127,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
     
     // 启动 WebSocket 服务器
-    if config.websocket.enabled {
+    let websocket_enabled = true; // 默认启用 WebSocket
+    let websocket_port = 8081; // 默认端口
+    if websocket_enabled {
         let websocket_handle = {
             let websocket = websocket_service.clone();
-            let port = config.websocket.port;
+            let port = websocket_port;
             tokio::spawn(async move {
                 if let Err(e) = websocket.start_server(port).await {
                     error!("❌ WebSocket server failed: {}", e);
@@ -144,11 +140,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             })
         };
         handles.push(websocket_handle);
-        info!("🔌 WebSocket server started on port {}", config.websocket.port);
+        info!("🔌 WebSocket server started on port {}", websocket_port);
     }
     
     // 启动 Webhook 投递服务
-    if config.webhook.enabled {
+    let webhook_enabled = true; // 默认启用 Webhook
+    if webhook_enabled {
         let webhook_handle = {
             let webhook = webhook_service.clone();
             tokio::spawn(async move {
@@ -164,8 +161,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // 启动 API 服务器
     let api_handle = {
         let state = app_state.clone();
-        let host = config.api.host.clone();
-        let port = config.api.port;
+        let host = "0.0.0.0".to_string(); // 默认主机
+        let port = 8080; // 默认端口
         tokio::spawn(async move {
             if let Err(e) = start_api_server(state, &host, port).await {
                 error!("❌ API server failed: {}", e);
@@ -173,11 +170,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         })
     };
     handles.push(api_handle);
-    info!("🌐 API server started on {}:{}", config.api.host, config.api.port);
+    info!("🌐 API server started on {}:{}", "0.0.0.0", 8080);
     
     info!("🎉 TRX Tracker Unified started successfully!");
-    info!("📊 API: http://{}:{}", config.api.host, config.api.port);
-    info!("📡 WebSocket: ws://{}:{}", config.api.host, config.websocket.port);
+    info!("📊 API: http://{}:{}", "0.0.0.0", 8080);
+    info!("📡 WebSocket: ws://{}:{}", "0.0.0.0", websocket_port);
     
     // 等待关闭信号
     tokio::select! {

@@ -267,19 +267,23 @@ impl TronClient {
             .unwrap_or_else(|| chrono::Utc::now());
 
         Ok(Transaction {
+            id: uuid::Uuid::new_v4(),
             hash,
-            block_number,
+            block_number: block_number as i64,
+            block_hash: "".to_string(), // 需要从区块数据中获取
+            transaction_index: 0, // 需要从交易索引中获取
             from_address,
             to_address,
-            amount,
-            token,
+            value: amount,
+            token_address: tx_obj.get("to").and_then(|v| v.as_str()).map(|s| s.to_string()),
+            token_symbol: Some(token.clone()),
+            token_decimals: if token == "USDT" { Some(6) } else { Some(6) },
+            gas_used: Some(gas_used as i64),
+            gas_price: Some(gas_price.to_string()),
             status,
             timestamp,
-            gas_used: Some(gas_used as i64),
-            gas_price: Some(gas_price as i64),
-            contract_address: tx_obj.get("to").and_then(|v| v.as_str()).map(|s| s.to_string()),
-            token_symbol: None,
-            token_decimals: None,
+            created_at: chrono::Utc::now(),
+            updated_at: chrono::Utc::now(),
         })
     }
 

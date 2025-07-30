@@ -55,6 +55,7 @@ pub struct WebhookServiceState {
 }
 
 /// Webhook 服务
+#[derive(Clone)]
 pub struct WebhookService {
     config: Config,
     db: Database,
@@ -167,14 +168,16 @@ impl WebhookService {
         }
 
         if let Some(ref tokens) = webhook.filters.tokens {
-            if !tokens.contains(&event.transaction.token) {
+            let default_token = "TRX".to_string();
+            let token_symbol = event.transaction.token_symbol.as_ref().unwrap_or(&default_token);
+            if !tokens.contains(token_symbol) {
                 return false;
             }
         }
 
         if let Some(ref min_amount) = webhook.filters.min_amount {
             if let (Ok(tx_amount), Ok(min_amt)) = (
-                event.transaction.amount.parse::<f64>(),
+                event.transaction.value.parse::<f64>(),
                 min_amount.parse::<f64>()
             ) {
                 if tx_amount < min_amt {
@@ -198,8 +201,8 @@ impl WebhookService {
                     "block_number": event.transaction.block_number,
                     "from_address": event.transaction.from_address,
                     "to_address": event.transaction.to_address,
-                    "amount": event.transaction.amount,
-                    "token": event.transaction.token,
+                    "value": event.transaction.value,
+                    "token_symbol": event.transaction.token_symbol,
                     "status": match event.transaction.status {
                         TransactionStatus::Success => "success",
                         TransactionStatus::Failed => "failed",
@@ -208,8 +211,7 @@ impl WebhookService {
                     "timestamp": event.transaction.timestamp.timestamp(),
                     "gas_used": event.transaction.gas_used,
                     "gas_price": event.transaction.gas_price,
-                    "contract_address": event.transaction.contract_address,
-                    "token_symbol": event.transaction.token_symbol,
+                    "token_address": event.transaction.token_address,
                     "token_decimals": event.transaction.token_decimals,
                 }
             }
@@ -520,6 +522,24 @@ impl WebhookService {
         // 为了简化，返回模拟数据
         info!("Retrying failed webhooks for: {:?}", webhook_id);
         Ok(0)
+    }
+
+    /// 启动投递工作器
+    pub async fn start_delivery_worker(&self) -> Result<()> {
+        info!("Starting webhook delivery worker...");
+        self.start().await
+    }
+
+    /// 停止 Webhook 服务
+    pub async fn stop(&self) -> Result<()> {
+        info!("Stopping webhook service...");
+        
+        // 清空投递队列
+        let cleared_count = self.clear_queue().await?;
+        info!("Cleared {} pending deliveries", cleared_count);
+        
+        info!("Webhook service stopped");
+        Ok(())
     }
 }
 

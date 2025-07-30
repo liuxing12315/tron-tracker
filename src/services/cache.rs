@@ -49,6 +49,7 @@ struct MultiAddressQueryKey {
 }
 
 /// 缓存服务
+#[derive(Clone)]
 pub struct CacheService {
     config: Config,
     redis_client: Client,
@@ -59,7 +60,7 @@ pub struct CacheService {
 
 impl CacheService {
     /// 创建新的缓存服务
-    pub async fn new(config: Config) -> Result<Self> {
+    pub async fn new(config: Config) -> Result<Self, anyhow::Error> {
         let redis_url = format!(
             "redis://{}:{}/{}",
             config.redis.host,
@@ -90,6 +91,28 @@ impl CacheService {
             })),
             start_time: std::time::Instant::now(),
         })
+    }
+
+    /// 创建禁用的缓存服务（用于测试或无 Redis 环境）
+    pub fn disabled() -> Self {
+        let config = Config::default();
+        let redis_client = Client::open("redis://127.0.0.1/").unwrap();
+        
+        Self {
+            config,
+            redis_client,
+            connection_pool: Arc::new(RwLock::new(Vec::new())),
+            statistics: Arc::new(RwLock::new(CacheStatistics {
+                total_requests: 0,
+                cache_hits: 0,
+                cache_misses: 0,
+                hit_rate: 0.0,
+                total_keys: 0,
+                memory_usage_bytes: 0,
+                uptime_seconds: 0,
+            })),
+            start_time: std::time::Instant::now(),
+        }
     }
 
     /// 获取 Redis 连接
@@ -494,8 +517,7 @@ impl CacheService {
             debug!("Warming up cache for address: {}", address);
             // 预加载逻辑...
         }
-        
-        info!("Cache warm-up completed");
+          info!("Cache warm-up completed");
         Ok(())
     }
 }
@@ -505,8 +527,9 @@ impl CacheService {
 pub struct MultiAddressQueryResult {
     pub transactions: Vec<Transaction>,
     pub total_count: u64,
-    pub address_stats: HashMap<String, AddressStatistics>,
-    pub query_time_ms: u64,
+    pub page: u32,
+    pub limit: u32,
+    pub has_more: bool,
 }
 
 #[cfg(test)]
@@ -527,10 +550,37 @@ mod tests {
     #[test]
     fn test_cache_key_generation() {
         let config = Config::default();
-        let service = CacheService::new(config).await.unwrap();
+        
+        // 创建模拟的过滤器和分页参数
+        let filters = TransactionFilters {
+            token: None,
+            status: None,
+            min_amount: None,
+            max_amount: None,
+            start_time: None,
+            end_time: None,
+        };
+        let pagination = PaginationParams { 
+            page: Some(1), 
+            limit: Some(20) 
+        };
 
-        let filters = TransactionFilters::default();
-        let pagination = PaginationParams { page: 1, limit: 20 };
+        // 测试缓存键生成逻辑
+        let service = CacheService {
+            config: config.clone(),
+            redis_client: redis::Client::open("redis://127.0.0.1/").unwrap(),
+            connection_pool: Arc::new(RwLock::new(Vec::new())),
+            statistics: Arc::new(RwLock::new(CacheStatistics {
+                total_requests: 0,
+                cache_hits: 0,
+                cache_misses: 0,
+                hit_rate: 0.0,
+                total_keys: 0,
+                memory_usage_bytes: 0,
+                uptime_seconds: 0,
+            })),
+            start_time: std::time::Instant::now(),
+        };
 
         let key1 = service.generate_address_cache_key("addr1", &filters, &pagination);
         let key2 = service.generate_address_cache_key("addr2", &filters, &pagination);
@@ -542,7 +592,21 @@ mod tests {
     #[test]
     fn test_hash_functions() {
         let config = Config::default();
-        let service = CacheService::new(config).await.unwrap();
+        let service = CacheService {
+            config: config.clone(),
+            redis_client: redis::Client::open("redis://127.0.0.1/").unwrap(),
+            connection_pool: Arc::new(RwLock::new(Vec::new())),
+            statistics: Arc::new(RwLock::new(CacheStatistics {
+                total_requests: 0,
+                cache_hits: 0,
+                cache_misses: 0,
+                hit_rate: 0.0,
+                total_keys: 0,
+                memory_usage_bytes: 0,
+                uptime_seconds: 0,
+            })),
+            start_time: std::time::Instant::now(),
+        };
 
         let hash1 = service.hash_string("test");
         let hash2 = service.hash_string("test");

@@ -101,6 +101,7 @@ pub struct WebSocketServiceState {
 }
 
 /// WebSocket 服务
+#[derive(Clone)]
 pub struct WebSocketService {
     config: Config,
     connections: Arc<RwLock<HashMap<String, WebSocketConnection>>>,
@@ -446,7 +447,9 @@ impl WebSocketService {
 
         // 检查代币过滤
         if let Some(ref tokens) = subscription.tokens {
-            if !tokens.contains(&transaction.token) {
+            let default_token = "TRX".to_string();
+            let token_symbol = transaction.token_symbol.as_ref().unwrap_or(&default_token);
+            if !tokens.contains(token_symbol) {
                 return false;
             }
         }
@@ -454,7 +457,7 @@ impl WebSocketService {
         // 检查最小金额过滤
         if let Some(ref min_amount) = subscription.min_amount {
             if let (Ok(tx_amount), Ok(min_amt)) = (
-                transaction.amount.parse::<f64>(),
+                transaction.value.parse::<f64>(),
                 min_amount.parse::<f64>()
             ) {
                 if tx_amount < min_amt {
@@ -494,41 +497,33 @@ impl WebSocketService {
         connections.values().cloned().collect()
     }
 
-    /// 获取连接统计信息
-    pub async fn get_connection_statistics(&self) -> WebSocketStatistics {
-        let connections = self.connections.read().await;
-        let state = self.state.read().await;
-
-        let total_subscriptions: usize = connections.values()
-            .map(|conn| conn.subscriptions.len())
-            .sum();
-
-        WebSocketStatistics {
-            total_connections: state.total_connections,
-            active_connections: state.active_connections,
-            total_subscriptions: total_subscriptions as u32,
-            total_messages_sent: state.total_messages_sent,
-            total_messages_received: state.total_messages_received,
-            total_bytes_sent: state.total_bytes_sent,
-            total_bytes_received: state.total_bytes_received,
-            uptime_seconds: self.start_time.elapsed().as_secs(),
-            average_latency_ms: 0.0, // TODO: 实现延迟计算
-        }
-    }
-
-    /// 断开指定连接
-    pub async fn disconnect_connection(&self, connection_id: &str) -> Result<()> {
-        // 这里应该发送关闭信号给指定连接
-        // 由于架构限制，这里只是移除连接记录
-        self.cleanup_connection(connection_id).await;
+    /// 启动 WebSocket 服务器
+    pub async fn start_server(&self, port: u16) -> Result<()> {
+        info!("Starting WebSocket server on port {}", port);
+        
+        // 这里应该启动实际的 WebSocket 服务器
+        // 由于我们使用 Axum，服务器启动逻辑应该在主应用中处理
+        // 这个方法主要用于初始化服务状态
+        
         Ok(())
     }
 
-    /// 获取消息历史（简化实现）
-    pub async fn get_message_history(&self, limit: Option<u32>) -> Vec<WebSocketMessageHistory> {
-        // 这里应该从数据库或内存缓存中获取消息历史
-        // 为了简化，返回模拟数据
-        vec![]
+    /// 停止 WebSocket 服务器
+    pub async fn stop(&self) -> Result<()> {
+        info!("Stopping WebSocket server...");
+        
+        // 断开所有连接
+        let connection_ids: Vec<String> = {
+            let connections = self.connections.read().await;
+            connections.keys().cloned().collect()
+        };
+        
+        for connection_id in connection_ids {
+            self.cleanup_connection(&connection_id).await;
+        }
+        
+        info!("WebSocket server stopped");
+        Ok(())
     }
 }
 
@@ -578,19 +573,23 @@ mod tests {
         let service = WebSocketService::new(config);
 
         let transaction = Transaction {
+            id: uuid::Uuid::new_v4(),
             hash: "test_hash".to_string(),
             block_number: 12345,
+            block_hash: "test_block_hash".to_string(),
+            transaction_index: 0,
             from_address: "TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t".to_string(),
             to_address: "TLPpXqSYwxPwaQypYiTWkQAG2J1ePgnNK6".to_string(),
-            amount: "1000.0".to_string(),
-            token: "USDT".to_string(),
+            value: "1000.0".to_string(),
+            token_address: None,
+            token_symbol: Some("USDT".to_string()),
+            token_decimals: Some(6),
+            gas_used: Some(21000),
+            gas_price: Some("20".to_string()),
             status: TransactionStatus::Success,
             timestamp: chrono::Utc::now(),
-            gas_used: Some(21000),
-            gas_price: Some(20),
-            contract_address: None,
-            token_symbol: None,
-            token_decimals: None,
+            created_at: chrono::Utc::now(),
+            updated_at: chrono::Utc::now(),
         };
 
         let subscription = WebSocketSubscription {

@@ -7,4 +7,5 @@ pub mod api_key;
 pub mod config;
 pub mod logs;
 pub mod dashboard;
+pub mod admin;
 
