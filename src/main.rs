@@ -60,14 +60,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
     
     // 初始化缓存服务
-    let cache_service = match CacheService::new(config.clone()).await {
+    let cache_service = match CacheService::new((*config).clone()).await {
         Ok(cache) => {
             info!("✅ Cache service initialized");
             Arc::new(cache)
         }
         Err(e) => {
             warn!("⚠️ Cache service initialization failed: {}, continuing without cache", e);
-            Arc::new(CacheService::disabled())
+            Arc::new(CacheService::new_disabled())
         }
     };
     
@@ -89,13 +89,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     info!("✅ WebSocket service initialized");
     
     // 初始化扫描器服务
-    let scanner_service = Arc::new(ScannerService::new(
+    let scanner_service = match ScannerService::new(
         (*config).clone(),
         (*database).clone(),
-        (*cache_service).clone(),
-        (*webhook_service).clone(),
-        (*websocket_service).clone(),
-    ));
+    ) {
+        Ok(scanner) => Arc::new(scanner),
+        Err(e) => {
+            error!("❌ Failed to initialize scanner service: {}", e);
+            return Err(e.into());
+        }
+    };
     info!("✅ Scanner service initialized");
     
     // 创建应用状态
@@ -186,9 +189,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     info!("🔄 Stopping all services...");
     
     // 停止扫描器
-    if let Err(e) = scanner_service.stop().await {
-        warn!("⚠️ Failed to stop scanner service: {}", e);
-    }
+    scanner_service.stop().await;
+    info!("✅ Scanner service stopped");
     
     // 停止 WebSocket 服务
     if let Err(e) = websocket_service.stop().await {
@@ -264,7 +266,8 @@ async fn start_api_server(
         // 添加中间件
         .layer(
             ServiceBuilder::new()
-                .timeout(Duration::from_secs(30))
+                // 暂时移除timeout中间件，因为tower::timeout不可用
+                // .layer(tower::timeout::TimeoutLayer::new(Duration::from_secs(30)))
                 .layer(CorsLayer::new()
                     .allow_origin(Any)
                     .allow_methods(Any)

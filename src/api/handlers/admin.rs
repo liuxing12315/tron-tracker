@@ -2,9 +2,9 @@
 // 
 // 提供完整的管理后台功能，包括仪表板、系统监控、配置管理等
 
-use crate::core::{database::Database, models::*};
+use crate::core::database::Database;
 use crate::services::{
-    auth::{AuthService, ApiKey, CreateApiKeyRequest, UpdateApiKeyRequest},
+    auth::AuthService,
     cache::CacheService,
     scanner::ScannerService,
     websocket::WebSocketService,
@@ -18,7 +18,7 @@ use axum::{
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
-use tracing::{error, info, warn};
+use tracing::{error, info};
 
 /// 管理后台应用状态
 pub struct AdminAppState {
@@ -333,7 +333,7 @@ pub async fn get_dashboard_stats(
 }
 
 /// 获取系统概览
-async fn get_system_overview(state: &AdminAppState) -> Result<SystemOverview, String> {
+async fn get_system_overview(_state: &AdminAppState) -> Result<SystemOverview, String> {
     // 这里应该实际获取系统指标，现在返回模拟数据
     Ok(SystemOverview {
         uptime_seconds: 86400, // 1 天
@@ -418,7 +418,7 @@ async fn get_performance_metrics(state: &AdminAppState) -> Result<PerformanceMet
 pub async fn get_system_config(
     State(state): State<Arc<AdminAppState>>,
 ) -> Result<Json<SystemConfig>, StatusCode> {
-    match state.db.get_system_config().await {
+    match state.db.get_all_system_config().await {
         Ok(config) => Ok(Json(config)),
         Err(e) => {
             error!("Failed to get system config: {}", e);
@@ -526,18 +526,11 @@ pub async fn restart_scanner(
 pub async fn stop_scanner(
     State(state): State<Arc<AdminAppState>>,
 ) -> Result<Json<serde_json::Value>, StatusCode> {
-    match state.scanner.stop().await {
-        Ok(_) => {
-            info!("Scanner stopped successfully");
-            Ok(Json(serde_json::json!({
-                "message": "Scanner stopped successfully"
-            })))
-        }
-        Err(e) => {
-            error!("Failed to stop scanner: {}", e);
-            Err(StatusCode::INTERNAL_SERVER_ERROR)
-        }
-    }
+    state.scanner.stop().await;
+    info!("Scanner stopped successfully");
+    Ok(Json(serde_json::json!({
+        "message": "Scanner stopped successfully"
+    })))
 }
 
 /// 手动扫描指定区块
@@ -545,7 +538,7 @@ pub async fn scan_block(
     Path(block_number): Path<u64>,
     State(state): State<Arc<AdminAppState>>,
 ) -> Result<Json<serde_json::Value>, StatusCode> {
-    match state.scanner.scan_block(block_number).await {
+    match state.scanner.scan_block_admin(block_number).await {
         Ok(result) => {
             info!("Block {} scanned successfully", block_number);
             Ok(Json(serde_json::json!({

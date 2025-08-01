@@ -8,15 +8,26 @@ use anyhow::{Result, anyhow};
 use reqwest::{Client, header::{HeaderMap, HeaderValue, AUTHORIZATION}};
 use serde_json::{json, Value};
 use std::time::Duration;
-use tracing::{debug, warn, error, info};
-use tokio::time::sleep;
+use std::sync::atomic::{AtomicUsize, Ordering};
+use tracing::{debug, warn, info};
+// Removed unused import: tokio::time::sleep
 
 /// GetBlock.io API 客户端
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct TronClient {
     client: Client,
     config: TronConfig,
-    current_node_index: usize,
+    current_node_index: AtomicUsize,
+}
+
+impl Clone for TronClient {
+    fn clone(&self) -> Self {
+        Self {
+            client: self.client.clone(),
+            config: self.config.clone(),
+            current_node_index: AtomicUsize::new(self.current_node_index.load(Ordering::Relaxed)),
+        }
+    }
 }
 
 impl TronClient {
@@ -29,28 +40,32 @@ impl TronClient {
         Ok(Self {
             client,
             config,
-            current_node_index: 0,
+            current_node_index: AtomicUsize::new(0),
         })
     }
 
     /// 获取当前使用的节点 URL
     fn get_current_node_url(&self) -> &str {
-        &self.config.nodes[self.current_node_index].url
+        let index = self.current_node_index.load(Ordering::Relaxed);
+        &self.config.nodes[index].url
     }
 
     /// 获取当前节点的 API Key
     fn get_current_api_key(&self) -> Option<&str> {
-        self.config.nodes[self.current_node_index].api_key.as_deref()
+        let index = self.current_node_index.load(Ordering::Relaxed);
+        self.config.nodes[index].api_key.as_deref()
     }
 
     /// 切换到下一个节点
-    fn switch_to_next_node(&mut self) {
-        self.current_node_index = (self.current_node_index + 1) % self.config.nodes.len();
+    fn switch_to_next_node(&self) {
+        let current = self.current_node_index.load(Ordering::Relaxed);
+        let next = (current + 1) % self.config.nodes.len();
+        self.current_node_index.store(next, Ordering::Relaxed);
         warn!("Switched to node: {}", self.get_current_node_url());
     }
 
     /// 发送 JSON-RPC 请求
-    async fn send_request(&mut self, method: &str, params: Value) -> Result<Value> {
+    async fn send_request(&self, method: &str, params: Value) -> Result<Value> {
         let mut attempts = 0;
         let max_attempts = self.config.nodes.len() * 2; // 每个节点尝试2次
 
@@ -130,7 +145,7 @@ impl TronClient {
     }
 
     /// 获取最新区块号
-    pub async fn get_latest_block_number(&mut self) -> Result<u64> {
+    pub async fn get_latest_block_number(&self) -> Result<u64> {
         let result = self.send_request("eth_blockNumber", json!([])).await?;
         
         let block_number_str = result.as_str()
@@ -147,7 +162,7 @@ impl TronClient {
     }
 
     /// 根据区块号获取区块数据
-    pub async fn get_block_by_number(&mut self, block_number: u64) -> Result<BlockData> {
+    pub async fn get_block_by_number(&self, block_number: u64) -> Result<BlockData> {
         let block_hex = format!("0x{:x}", block_number);
         let result = self.send_request("eth_getBlockByNumber", json!([block_hex, true])).await?;
         
@@ -155,7 +170,7 @@ impl TronClient {
     }
 
     /// 根据区块哈希获取区块数据
-    pub async fn get_block_by_hash(&mut self, block_hash: &str) -> Result<BlockData> {
+    pub async fn get_block_by_hash(&self, block_hash: &str) -> Result<BlockData> {
         let result = self.send_request("eth_getBlockByHash", json!([block_hash, true])).await?;
         
         self.parse_block_data(result).await
@@ -269,7 +284,7 @@ impl TronClient {
         Ok(Transaction {
             id: uuid::Uuid::new_v4(),
             hash,
-            block_number: block_number as i64,
+            block_number: block_number,
             block_hash: "".to_string(), // 需要从区块数据中获取
             transaction_index: 0, // 需要从交易索引中获取
             from_address,
@@ -278,7 +293,7 @@ impl TronClient {
             token_address: tx_obj.get("to").and_then(|v| v.as_str()).map(|s| s.to_string()),
             token_symbol: Some(token.clone()),
             token_decimals: if token == "USDT" { Some(6) } else { Some(6) },
-            gas_used: Some(gas_used as i64),
+            gas_used: Some(gas_used as u64),
             gas_price: Some(gas_price.to_string()),
             status,
             timestamp,
@@ -316,12 +331,12 @@ impl TronClient {
     }
 
     /// 获取交易收据
-    pub async fn get_transaction_receipt(&mut self, tx_hash: &str) -> Result<Value> {
+    pub async fn get_transaction_receipt(&self, tx_hash: &str) -> Result<Value> {
         self.send_request("eth_getTransactionReceipt", json!([tx_hash])).await
     }
 
     /// 获取账户余额
-    pub async fn get_balance(&mut self, address: &str) -> Result<String> {
+    pub async fn get_balance(&self, address: &str) -> Result<String> {
         let result = self.send_request("eth_getBalance", json!([address, "latest"])).await?;
         
         let balance_str = result.as_str()
@@ -332,7 +347,7 @@ impl TronClient {
     }
 
     /// 获取 TRC20 代币余额
-    pub async fn get_token_balance(&mut self, contract_address: &str, wallet_address: &str) -> Result<String> {
+    pub async fn get_token_balance(&self, contract_address: &str, wallet_address: &str) -> Result<String> {
         // 构造 balanceOf 方法调用
         let method_signature = "70a08231"; // balanceOf(address)
         let padded_address = format!("{:0>64}", wallet_address.trim_start_matches("0x"));
@@ -353,7 +368,7 @@ impl TronClient {
     }
 
     /// 健康检查
-    pub async fn health_check(&mut self) -> Result<bool> {
+    pub async fn health_check(&self) -> Result<bool> {
         match self.get_latest_block_number().await {
             Ok(_) => Ok(true),
             Err(e) => {
@@ -367,17 +382,19 @@ impl TronClient {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::core::config::TronNodeConfig;
+    // Removed TronNodeConfig import - using NodeConfig directly
 
     #[tokio::test]
     async fn test_tron_client_creation() {
         let config = TronConfig {
-            nodes: vec![TronNodeConfig {
+            nodes: vec![crate::core::config::NodeConfig {
+                name: "TronGrid".to_string(),
                 url: "https://api.trongrid.io".to_string(),
                 api_key: None,
                 priority: 1,
-                enabled: true,
+                timeout: 30,
             }],
+            api_key: None,
             timeout: 30,
         };
 

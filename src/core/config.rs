@@ -7,6 +7,7 @@ pub struct Config {
     pub database: DatabaseConfig,
     pub redis: RedisConfig,
     pub blockchain: BlockchainConfig,
+    pub tron: TronConfig,
     pub api: ApiConfig,
     pub notifications: NotificationConfig,
     pub auth: AuthConfig,
@@ -98,6 +99,13 @@ pub struct AuthConfig {
     pub api_key_length: usize,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TronConfig {
+    pub nodes: Vec<NodeConfig>,
+    pub api_key: Option<String>,
+    pub timeout: u64,
+}
+
 impl Default for Config {
     fn default() -> Self {
         Self {
@@ -132,6 +140,26 @@ impl Default for Config {
                 start_block: None,
                 batch_size: 100,
                 scan_interval: 3,
+            },
+            tron: TronConfig {
+                nodes: vec![
+                    NodeConfig {
+                        name: "TronGrid".to_string(),
+                        url: "https://api.trongrid.io".to_string(),
+                        api_key: None,
+                        priority: 1,
+                        timeout: 30,
+                    },
+                    NodeConfig {
+                        name: "GetBlock".to_string(),
+                        url: "https://go.getblock.io".to_string(),
+                        api_key: None,
+                        priority: 2,
+                        timeout: 30,
+                    },
+                ],
+                api_key: None,
+                timeout: 30,
             },
             api: ApiConfig {
                 rate_limit: RateLimitConfig {
@@ -223,6 +251,273 @@ impl Config {
         let content = toml::to_string_pretty(self)?;
         tokio::fs::write(path, content).await?;
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::env;
+    use tempfile::NamedTempFile;
+
+    #[test]
+    fn test_config_default() {
+        let config = Config::default();
+        
+        // Test database defaults
+        assert_eq!(config.database.max_connections, 20);
+        assert_eq!(config.database.min_connections, 5);
+        assert_eq!(config.database.acquire_timeout, 30);
+        
+        // Test Redis defaults
+        assert_eq!(config.redis.url, "redis://localhost:6379");
+        assert_eq!(config.redis.max_connections, 10);
+        assert_eq!(config.redis.default_ttl, 300);
+        
+        // Test blockchain defaults
+        assert_eq!(config.blockchain.batch_size, 100);
+        assert_eq!(config.blockchain.scan_interval, 3);
+        assert!(config.blockchain.start_block.is_none());
+        
+        // Test API defaults
+        assert_eq!(config.api.rate_limit.requests_per_minute, 1000);
+        assert_eq!(config.api.pagination.default_limit, 20);
+        assert_eq!(config.api.pagination.max_limit, 100);
+        
+        // Test auth defaults
+        assert_eq!(config.auth.token_expiry, 86400);
+        assert_eq!(config.auth.api_key_length, 32);
+    }
+
+    #[test]
+    fn test_node_config_creation() {
+        let node = NodeConfig {
+            name: "TestNode".to_string(),
+            url: "https://test.example.com".to_string(),
+            api_key: Some("test_key".to_string()),
+            priority: 1,
+            timeout: 30,
+        };
+
+        assert_eq!(node.name, "TestNode");
+        assert_eq!(node.url, "https://test.example.com");
+        assert_eq!(node.api_key, Some("test_key".to_string()));
+        assert_eq!(node.priority, 1);
+        assert_eq!(node.timeout, 30);
+    }
+
+    #[test]
+    fn test_database_config_creation() {
+        let db_config = DatabaseConfig {
+            url: "postgresql://user:pass@localhost/test".to_string(),
+            max_connections: 50,
+            min_connections: 10,
+            acquire_timeout: 60,
+        };
+
+        assert_eq!(db_config.url, "postgresql://user:pass@localhost/test");
+        assert_eq!(db_config.max_connections, 50);
+        assert_eq!(db_config.min_connections, 10);
+        assert_eq!(db_config.acquire_timeout, 60);
+    }
+
+    #[test]
+    fn test_rate_limit_config() {
+        let rate_config = RateLimitConfig {
+            requests_per_minute: 500,
+            burst_size: 50,
+        };
+
+        assert_eq!(rate_config.requests_per_minute, 500);
+        assert_eq!(rate_config.burst_size, 50);
+    }
+
+    #[test]
+    fn test_cors_config() {
+        let cors_config = CorsConfig {
+            allowed_origins: vec!["http://localhost:3000".to_string()],
+            allowed_methods: vec!["GET".to_string(), "POST".to_string()],
+            allowed_headers: vec!["Content-Type".to_string()],
+        };
+
+        assert_eq!(cors_config.allowed_origins, vec!["http://localhost:3000"]);
+        assert_eq!(cors_config.allowed_methods, vec!["GET", "POST"]);
+        assert_eq!(cors_config.allowed_headers, vec!["Content-Type"]);
+    }
+
+    #[test]
+    fn test_webhook_config() {
+        let webhook_config = WebhookConfig {
+            timeout: 60,
+            retry_attempts: 5,
+            retry_delay: 10,
+            max_payload_size: 2048,
+        };
+
+        assert_eq!(webhook_config.timeout, 60);
+        assert_eq!(webhook_config.retry_attempts, 5);
+        assert_eq!(webhook_config.retry_delay, 10);
+        assert_eq!(webhook_config.max_payload_size, 2048);
+    }
+
+    #[test]
+    fn test_websocket_config() {
+        let ws_config = WebSocketConfig {
+            max_connections: 5000,
+            ping_interval: 60,
+            message_buffer_size: 2000,
+        };
+
+        assert_eq!(ws_config.max_connections, 5000);
+        assert_eq!(ws_config.ping_interval, 60);
+        assert_eq!(ws_config.message_buffer_size, 2000);
+    }
+
+    #[tokio::test]
+    async fn test_config_serialization_deserialization() {
+        let config = Config::default();
+        
+        // Test TOML serialization
+        let toml_str = toml::to_string_pretty(&config).unwrap();
+        assert!(toml_str.contains("[database]"));
+        assert!(toml_str.contains("[redis]"));
+        assert!(toml_str.contains("[blockchain]"));
+        
+        // Test TOML deserialization
+        let deserialized: Config = toml::from_str(&toml_str).unwrap();
+        assert_eq!(config.database.max_connections, deserialized.database.max_connections);
+        assert_eq!(config.redis.url, deserialized.redis.url);
+        assert_eq!(config.blockchain.batch_size, deserialized.blockchain.batch_size);
+    }
+
+    #[tokio::test]
+    async fn test_config_load_from_nonexistent_file() {
+        let temp_path = "/tmp/nonexistent_config.toml";
+        
+        // Should return default config when file doesn't exist
+        let config = Config::load(temp_path).await.unwrap();
+        let default_config = Config::default();
+        
+        assert_eq!(config.database.max_connections, default_config.database.max_connections);
+        assert_eq!(config.redis.url, default_config.redis.url);
+    }
+
+    #[tokio::test]
+    async fn test_config_save_and_load() {
+        let temp_file = NamedTempFile::new().unwrap();
+        let temp_path = temp_file.path();
+        
+        // Create a custom config
+        let mut config = Config::default();
+        config.database.max_connections = 100;
+        config.redis.url = "redis://custom:6379".to_string();
+        
+        // Save config
+        config.save(temp_path).await.unwrap();
+        
+        // Load config
+        let loaded_config = Config::load(temp_path).await.unwrap();
+        
+        assert_eq!(loaded_config.database.max_connections, 100);
+        assert_eq!(loaded_config.redis.url, "redis://custom:6379");
+    }
+
+    #[test]
+    fn test_apply_env_overrides() {
+        let mut config = Config::default();
+        
+        // Set environment variables
+        env::set_var("DATABASE_URL", "postgresql://env:pass@localhost/env_db");
+        env::set_var("DATABASE_MAX_CONNECTIONS", "50");
+        env::set_var("REDIS_URL", "redis://env:6379");
+        env::set_var("BLOCKCHAIN_START_BLOCK", "1000000");
+        env::set_var("JWT_SECRET", "env_secret_key");
+        
+        // Apply environment overrides
+        config.apply_env_overrides();
+        
+        assert_eq!(config.database.url, "postgresql://env:pass@localhost/env_db");
+        assert_eq!(config.database.max_connections, 50);
+        assert_eq!(config.redis.url, "redis://env:6379");
+        assert_eq!(config.blockchain.start_block, Some(1000000));
+        assert_eq!(config.auth.jwt_secret, "env_secret_key");
+        
+        // Clean up environment variables
+        env::remove_var("DATABASE_URL");
+        env::remove_var("DATABASE_MAX_CONNECTIONS");
+        env::remove_var("REDIS_URL");
+        env::remove_var("BLOCKCHAIN_START_BLOCK");
+        env::remove_var("JWT_SECRET");
+    }
+
+    #[test]
+    fn test_apply_env_overrides_invalid_values() {
+        let mut config = Config::default();
+        let original_max_conn = config.database.max_connections;
+        
+        // Set invalid environment variable
+        env::set_var("DATABASE_MAX_CONNECTIONS", "invalid_number");
+        
+        // Apply environment overrides
+        config.apply_env_overrides();
+        
+        // Should keep original value when parsing fails
+        assert_eq!(config.database.max_connections, original_max_conn);
+        
+        // Clean up
+        env::remove_var("DATABASE_MAX_CONNECTIONS");
+    }
+
+    #[test]
+    fn test_notification_config() {
+        let notification_config = NotificationConfig {
+            webhook: WebhookConfig {
+                timeout: 45,
+                retry_attempts: 4,
+                retry_delay: 8,
+                max_payload_size: 4096,
+            },
+            websocket: WebSocketConfig {
+                max_connections: 8000,
+                ping_interval: 45,
+                message_buffer_size: 1500,
+            },
+        };
+
+        assert_eq!(notification_config.webhook.timeout, 45);
+        assert_eq!(notification_config.webhook.retry_attempts, 4);
+        assert_eq!(notification_config.websocket.max_connections, 8000);
+        assert_eq!(notification_config.websocket.ping_interval, 45);
+    }
+
+    #[test]
+    fn test_tron_config_multiple_nodes() {
+        let tron_config = TronConfig {
+            nodes: vec![
+                NodeConfig {
+                    name: "Primary".to_string(),
+                    url: "https://primary.tron.io".to_string(),
+                    api_key: Some("primary_key".to_string()),
+                    priority: 1,
+                    timeout: 30,
+                },
+                NodeConfig {
+                    name: "Backup".to_string(),
+                    url: "https://backup.tron.io".to_string(),
+                    api_key: None,
+                    priority: 2,
+                    timeout: 45,
+                },
+            ],
+            api_key: Some("global_key".to_string()),
+            timeout: 60,
+        };
+
+        assert_eq!(tron_config.nodes.len(), 2);
+        assert_eq!(tron_config.nodes[0].name, "Primary");
+        assert_eq!(tron_config.nodes[1].name, "Backup");
+        assert_eq!(tron_config.api_key, Some("global_key".to_string()));
+        assert_eq!(tron_config.timeout, 60);
     }
 }
 

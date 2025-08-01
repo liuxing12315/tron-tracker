@@ -4,14 +4,14 @@
 
 use crate::core::{config::Config, models::*};
 use crate::services::scanner::TransactionEvent;
-use anyhow::{Result, anyhow};
+use anyhow::Result;
 use axum::{
     extract::{
         ws::{WebSocket, Message},
         WebSocketUpgrade, Query, State,
     },
     response::Response,
-    http::StatusCode,
+    // Removed unused import: StatusCode
 };
 use futures_util::{sink::SinkExt, stream::StreamExt};
 use serde::{Deserialize, Serialize};
@@ -36,7 +36,7 @@ pub struct WebSocketConnection {
 }
 
 /// WebSocket 订阅信息
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct WebSocketSubscription {
     pub event_types: Vec<String>,
     pub addresses: Option<Vec<String>>,
@@ -202,7 +202,7 @@ impl WebSocketService {
 
         // 创建心跳定时器
         let mut heartbeat_interval = tokio::time::interval(
-            std::time::Duration::from_secs(self.config.websocket.heartbeat_interval)
+            std::time::Duration::from_secs(self.config.notifications.websocket.ping_interval)
         );
 
         // 处理消息循环
@@ -224,6 +224,17 @@ impl WebSocketService {
                             info!("Client {} closed connection", connection_id);
                             break;
                         }
+                        Some(Ok(Message::Ping(payload))) => {
+                            // Respond to ping with pong
+                            if let Err(e) = sender.send(Message::Pong(payload)).await {
+                                warn!("Failed to send pong to {}: {}", connection_id, e);
+                                break;
+                            }
+                        }
+                        Some(Ok(Message::Pong(_))) => {
+                            // Pong received, connection is alive
+                            debug!("Received pong from {}", connection_id);
+                        }
                         Some(Err(e)) => {
                             warn!("WebSocket error for {}: {}", connection_id, e);
                             break;
@@ -241,13 +252,14 @@ impl WebSocketService {
                         Ok(msg) => {
                             if self.should_send_to_connection(&connection_id, &msg).await {
                                 if let Ok(msg_text) = serde_json::to_string(&msg) {
+                                    let msg_len = msg_text.len() as u64;
                                     if let Err(e) = sender.send(Message::Text(msg_text)).await {
                                         warn!("Failed to send broadcast message: {}", e);
                                         break;
                                     }
                                     
                                     // 更新统计信息
-                                    self.update_connection_stats(&connection_id, 0, msg_text.len() as u64).await;
+                                    self.update_connection_stats(&connection_id, 0, msg_len).await;
                                 }
                             }
                         }
@@ -419,7 +431,7 @@ impl WebSocketService {
             if self.matches_subscription(&event.transaction, subscription) {
                 let notification = WebSocketMessage::TransactionNotification {
                     transaction: event.transaction.clone(),
-                    event_type: event.event_type.clone(),
+                    event_type: format!("{:?}", event.event_type),
                     subscription_id: subscription_id.clone(),
                 };
 
@@ -524,6 +536,22 @@ impl WebSocketService {
         
         info!("WebSocket server stopped");
         Ok(())
+    }
+
+    /// 获取统计信息
+    pub async fn get_statistics(&self) -> Result<crate::api::handlers::admin::WebSocketStats> {
+        let state = self.get_service_state().await;
+        let subscriptions = self.subscriptions.read().await;
+        
+        Ok(crate::api::handlers::admin::WebSocketStats {
+            active_connections: state.active_connections,
+            total_connections_today: state.total_connections as u64,
+            messages_sent_today: state.total_messages_sent,
+            average_latency_ms: 0.0, // TODO: Implement latency tracking
+            subscription_count: subscriptions.len() as u64,
+            connection_by_type: std::collections::HashMap::new(), // TODO: Implement connection type tracking
+            top_subscribed_events: Vec::new(), // TODO: Implement event subscription tracking
+        })
     }
 }
 

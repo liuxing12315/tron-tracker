@@ -4,7 +4,7 @@ use axum::{
 };
 use serde::Serialize;
 
-use crate::api::{ApiState, ApiResult, ApiResponse};
+use crate::api::{AppState, ApiResult, ApiResponse};
 
 #[derive(Debug, Serialize)]
 pub struct DashboardStats {
@@ -21,7 +21,7 @@ pub struct DashboardStats {
 
 /// Get dashboard statistics
 pub async fn get_stats(
-    State(state): State<ApiState>,
+    State(state): State<std::sync::Arc<AppState>>,
 ) -> ApiResult<DashboardStats> {
     // In a real implementation, these would come from the database and system metrics
     let stats = DashboardStats {

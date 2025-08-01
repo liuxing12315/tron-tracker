@@ -2,8 +2,8 @@
 // 
 // 处理交易查询、统计等相关请求，包括多地址批量查询
 
-use crate::core::{database::Database, models::*};
-use crate::services::cache::CacheService;
+use crate::core::models::*;
+// Removed unused import: CacheService
 use axum::{
     extract::{Query, State, Path},
     http::StatusCode,
@@ -14,11 +14,8 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use tracing::{info, warn, error, debug};
 
-/// 应用状态
-pub struct AppState {
-    pub db: Database,
-    pub cache: CacheService,
-}
+// Use the unified AdminAppState
+use crate::api::handlers::admin::AdminAppState;
 
 /// 交易查询参数
 #[derive(Debug, Deserialize)]
@@ -49,7 +46,7 @@ pub struct MultiAddressQueryParams {
 }
 
 /// 交易列表响应
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct TransactionListResponse {
     pub transactions: Vec<Transaction>,
     pub total_count: u64,
@@ -61,41 +58,39 @@ pub struct TransactionListResponse {
 }
 
 /// 多地址查询响应
-#[derive(Debug, Serialize)]
+// Use the unified MultiAddressQueryResult from models, with additional fields for API response
+#[derive(Debug, Serialize, Deserialize)]
 pub struct MultiAddressQueryResponse {
     pub transactions: Vec<Transaction>,
     pub total_count: u64,
     pub page: u32,
     pub limit: u32,
     pub total_pages: u32,
+    pub has_more: bool,
     pub address_stats: HashMap<String, AddressStatistics>,
+    pub addresses_queried: u32,
     pub query_time_ms: u64,
     pub cache_hit: bool,
-    pub addresses_queried: u32,
 }
 
-/// 地址统计信息
-#[derive(Debug, Serialize)]
-pub struct AddressStatistics {
-    pub total_transactions: u64,
-    pub total_received: String,
-    pub total_sent: String,
-    pub token_balances: HashMap<String, String>,
-    pub first_transaction_time: Option<chrono::DateTime<chrono::Utc>>,
-    pub last_transaction_time: Option<chrono::DateTime<chrono::Utc>>,
-}
+// Use the unified AddressStatistics from models
+pub use crate::core::models::AddressStatistics;
 
 /// 获取交易列表
 pub async fn get_transactions(
     Query(params): Query<TransactionQueryParams>,
-    State(state): State<Arc<AppState>>,
+    State(state): State<Arc<AdminAppState>>,
 ) -> Result<Json<TransactionListResponse>, StatusCode> {
     let start_time = std::time::Instant::now();
     
     let page = params.page.unwrap_or(1);
     let limit = params.limit.unwrap_or(20).min(100); // 最大限制100
 
-    let filters = TransactionFilters {
+    let filters = TransactionQuery {
+        address: None,
+        hash: None,
+        block_number: None,
+        token_address: None,
         token: params.token,
         status: params.status.and_then(|s| match s.as_str() {
             "success" => Some(TransactionStatus::Success),
@@ -107,9 +102,13 @@ pub async fn get_transactions(
         max_amount: params.max_amount,
         start_time: params.start_time.map(|t| chrono::DateTime::from_timestamp(t, 0).unwrap()),
         end_time: params.end_time.map(|t| chrono::DateTime::from_timestamp(t, 0).unwrap()),
+        limit: Some(limit),
+        offset: Some((page - 1) * limit),
+        sort_by: None,
+        sort_order: None,
     };
 
-    let pagination = PaginationParams { page, limit };
+    let pagination = Pagination { page: Some(page), limit: Some(limit) };
 
     // 尝试从缓存获取
     let cache_key = format!("transactions:{}:{}", 
@@ -168,7 +167,7 @@ pub async fn get_transactions(
 /// 获取单个交易详情
 pub async fn get_transaction(
     Path(hash): Path<String>,
-    State(state): State<Arc<AppState>>,
+    State(state): State<Arc<AdminAppState>>,
 ) -> Result<Json<Transaction>, StatusCode> {
     // 尝试从缓存获取
     if let Ok(Some(cached_transaction)) = state.cache.get_cached_transaction(&hash).await {
@@ -197,14 +196,18 @@ pub async fn get_transaction(
 pub async fn get_address_transactions(
     Path(address): Path<String>,
     Query(params): Query<TransactionQueryParams>,
-    State(state): State<Arc<AppState>>,
+    State(state): State<Arc<AdminAppState>>,
 ) -> Result<Json<TransactionListResponse>, StatusCode> {
     let start_time = std::time::Instant::now();
     
     let page = params.page.unwrap_or(1);
     let limit = params.limit.unwrap_or(20).min(100);
 
-    let filters = TransactionFilters {
+    let filters = TransactionQuery {
+        address: None,
+        hash: None,
+        block_number: None,
+        token_address: None,
         token: params.token,
         status: params.status.and_then(|s| match s.as_str() {
             "success" => Some(TransactionStatus::Success),
@@ -216,9 +219,13 @@ pub async fn get_address_transactions(
         max_amount: params.max_amount,
         start_time: params.start_time.map(|t| chrono::DateTime::from_timestamp(t, 0).unwrap()),
         end_time: params.end_time.map(|t| chrono::DateTime::from_timestamp(t, 0).unwrap()),
+        limit: Some(limit),
+        offset: Some((page - 1) * limit),
+        sort_by: None,
+        sort_order: None,
     };
 
-    let pagination = PaginationParams { page, limit };
+    let pagination = Pagination { page: Some(page), limit: Some(limit) };
 
     // 尝试从缓存获取
     let mut cache_hit = false;
@@ -273,7 +280,7 @@ pub async fn get_address_transactions(
 /// 多地址批量查询
 pub async fn get_multi_address_transactions(
     Query(params): Query<MultiAddressQueryParams>,
-    State(state): State<Arc<AppState>>,
+    State(state): State<Arc<AdminAppState>>,
 ) -> Result<Json<MultiAddressQueryResponse>, StatusCode> {
     let start_time = std::time::Instant::now();
     
@@ -298,7 +305,11 @@ pub async fn get_multi_address_transactions(
     let limit = params.limit.unwrap_or(20).min(100);
     let group_by_address = params.group_by_address.unwrap_or(false);
 
-    let filters = TransactionFilters {
+    let filters = TransactionQuery {
+        address: None,
+        hash: None,
+        block_number: None,
+        token_address: None,
         token: params.token,
         status: params.status.and_then(|s| match s.as_str() {
             "success" => Some(TransactionStatus::Success),
@@ -310,9 +321,13 @@ pub async fn get_multi_address_transactions(
         max_amount: params.max_amount,
         start_time: params.start_time.map(|t| chrono::DateTime::from_timestamp(t, 0).unwrap()),
         end_time: params.end_time.map(|t| chrono::DateTime::from_timestamp(t, 0).unwrap()),
+        limit: Some(limit),
+        offset: Some((page - 1) * limit),
+        sort_by: None,
+        sort_order: None,
     };
 
-    let pagination = PaginationParams { page, limit };
+    let pagination = Pagination { page: Some(page), limit: Some(limit) };
 
     info!("Multi-address query for {} addresses", addresses.len());
 
@@ -324,6 +339,7 @@ pub async fn get_multi_address_transactions(
         Ok(cached_result)
     } else {
         // 从数据库查询
+        cache_hit = false;
         state.db.get_multi_address_transactions(&addresses, &filters, &pagination, group_by_address).await
     };
 
@@ -338,10 +354,11 @@ pub async fn get_multi_address_transactions(
                 page,
                 limit,
                 total_pages,
+                has_more: page < total_pages,
                 address_stats: query_result.address_stats.clone(),
+                addresses_queried: addresses.len() as u32,
                 query_time_ms,
                 cache_hit,
-                addresses_queried: addresses.len() as u32,
             };
 
             // 缓存结果（如果不是从缓存获取的）
@@ -366,7 +383,7 @@ pub async fn get_multi_address_transactions(
 /// 获取地址统计信息
 pub async fn get_address_statistics(
     Path(address): Path<String>,
-    State(state): State<Arc<AppState>>,
+    State(state): State<Arc<AdminAppState>>,
 ) -> Result<Json<AddressStatistics>, StatusCode> {
     match state.db.get_address_statistics(&address).await {
         Ok(stats) => Ok(Json(stats)),
@@ -377,10 +394,24 @@ pub async fn get_address_statistics(
     }
 }
 
+/// 获取地址信息
+pub async fn get_address_info(
+    Path(address): Path<String>,
+    State(state): State<Arc<AdminAppState>>,
+) -> Result<Json<AddressStatistics>, StatusCode> {
+    match state.db.get_address_statistics(&address).await {
+        Ok(stats) => Ok(Json(stats)),
+        Err(e) => {
+            error!("Failed to get address info for {}: {}", address, e);
+            Err(StatusCode::INTERNAL_SERVER_ERROR)
+        }
+    }
+}
+
 /// 批量获取地址统计信息
 pub async fn get_batch_address_statistics(
     Query(params): Query<HashMap<String, String>>,
-    State(state): State<Arc<AppState>>,
+    State(state): State<Arc<AdminAppState>>,
 ) -> Result<Json<HashMap<String, AddressStatistics>>, StatusCode> {
     let addresses_param = params.get("addresses").ok_or(StatusCode::BAD_REQUEST)?;
     
@@ -406,7 +437,7 @@ pub async fn get_batch_address_statistics(
 /// 搜索交易
 pub async fn search_transactions(
     Query(params): Query<HashMap<String, String>>,
-    State(state): State<Arc<AppState>>,
+    State(state): State<Arc<AdminAppState>>,
 ) -> Result<Json<TransactionListResponse>, StatusCode> {
     let start_time = std::time::Instant::now();
     
@@ -414,7 +445,7 @@ pub async fn search_transactions(
     let page = params.get("page").and_then(|p| p.parse().ok()).unwrap_or(1);
     let limit = params.get("limit").and_then(|l| l.parse().ok()).unwrap_or(20).min(100);
 
-    let pagination = PaginationParams { page, limit };
+    let pagination = Pagination { page: Some(page), limit: Some(limit) };
 
     match state.db.search_transactions(query, &pagination).await {
         Ok((transactions, total_count)) => {

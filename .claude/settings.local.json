@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(cargo:*)",
+      "Bash(find:*)",
+      "Bash(rustc:*)",
+      "Bash(grep:*)",
+      "Bash(timeout 120 cargo test --quiet)"
+    ],
+    "deny": []
+  }
+}
