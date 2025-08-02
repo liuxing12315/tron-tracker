@@ -5,8 +5,6 @@ use std::path::Path;
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Config {
     pub database: DatabaseConfig,
-    pub redis: RedisConfig,
-    pub blockchain: BlockchainConfig,
     pub tron: TronConfig,
     pub api: ApiConfig,
     pub notifications: NotificationConfig,
@@ -21,20 +19,6 @@ pub struct DatabaseConfig {
     pub acquire_timeout: u64,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct RedisConfig {
-    pub url: String,
-    pub max_connections: u32,
-    pub default_ttl: u64,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct BlockchainConfig {
-    pub nodes: Vec<NodeConfig>,
-    pub start_block: Option<u64>,
-    pub batch_size: u32,
-    pub scan_interval: u64,
-}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct NodeConfig {
@@ -104,6 +88,8 @@ pub struct TronConfig {
     pub nodes: Vec<NodeConfig>,
     pub api_key: Option<String>,
     pub timeout: u64,
+    pub batch_size: u32,
+    pub scan_interval: u64,
 }
 
 impl Default for Config {
@@ -114,32 +100,6 @@ impl Default for Config {
                 max_connections: 20,
                 min_connections: 5,
                 acquire_timeout: 30,
-            },
-            redis: RedisConfig {
-                url: "redis://localhost:6379".to_string(),
-                max_connections: 10,
-                default_ttl: 300,
-            },
-            blockchain: BlockchainConfig {
-                nodes: vec![
-                    NodeConfig {
-                        name: "TronGrid".to_string(),
-                        url: "https://api.trongrid.io".to_string(),
-                        api_key: None,
-                        priority: 1,
-                        timeout: 30,
-                    },
-                    NodeConfig {
-                        name: "GetBlock".to_string(),
-                        url: "https://go.getblock.io".to_string(),
-                        api_key: None,
-                        priority: 2,
-                        timeout: 30,
-                    },
-                ],
-                start_block: None,
-                batch_size: 100,
-                scan_interval: 3,
             },
             tron: TronConfig {
                 nodes: vec![
@@ -160,6 +120,8 @@ impl Default for Config {
                 ],
                 api_key: None,
                 timeout: 30,
+                batch_size: 100,
+                scan_interval: 3,
             },
             api: ApiConfig {
                 rate_limit: RateLimitConfig {
@@ -229,17 +191,6 @@ impl Config {
             }
         }
         
-        // Redis overrides
-        if let Ok(url) = std::env::var("REDIS_URL") {
-            self.redis.url = url;
-        }
-        
-        // Blockchain overrides
-        if let Ok(start_block) = std::env::var("BLOCKCHAIN_START_BLOCK") {
-            if let Ok(val) = start_block.parse() {
-                self.blockchain.start_block = Some(val);
-            }
-        }
         
         // Auth overrides
         if let Ok(secret) = std::env::var("JWT_SECRET") {
@@ -269,15 +220,9 @@ mod tests {
         assert_eq!(config.database.min_connections, 5);
         assert_eq!(config.database.acquire_timeout, 30);
         
-        // Test Redis defaults
-        assert_eq!(config.redis.url, "redis://localhost:6379");
-        assert_eq!(config.redis.max_connections, 10);
-        assert_eq!(config.redis.default_ttl, 300);
-        
-        // Test blockchain defaults
-        assert_eq!(config.blockchain.batch_size, 100);
-        assert_eq!(config.blockchain.scan_interval, 3);
-        assert!(config.blockchain.start_block.is_none());
+        // Test tron defaults
+        assert_eq!(config.tron.batch_size, 100);
+        assert_eq!(config.tron.scan_interval, 3);
         
         // Test API defaults
         assert_eq!(config.api.rate_limit.requests_per_minute, 1000);
@@ -380,14 +325,12 @@ mod tests {
         // Test TOML serialization
         let toml_str = toml::to_string_pretty(&config).unwrap();
         assert!(toml_str.contains("[database]"));
-        assert!(toml_str.contains("[redis]"));
-        assert!(toml_str.contains("[blockchain]"));
+        assert!(toml_str.contains("[tron]"));
         
         // Test TOML deserialization
         let deserialized: Config = toml::from_str(&toml_str).unwrap();
         assert_eq!(config.database.max_connections, deserialized.database.max_connections);
-        assert_eq!(config.redis.url, deserialized.redis.url);
-        assert_eq!(config.blockchain.batch_size, deserialized.blockchain.batch_size);
+        assert_eq!(config.tron.batch_size, deserialized.tron.batch_size);
     }
 
     #[tokio::test]
@@ -399,7 +342,7 @@ mod tests {
         let default_config = Config::default();
         
         assert_eq!(config.database.max_connections, default_config.database.max_connections);
-        assert_eq!(config.redis.url, default_config.redis.url);
+        assert_eq!(config.tron.batch_size, default_config.tron.batch_size);
     }
 
     #[tokio::test]
@@ -410,7 +353,7 @@ mod tests {
         // Create a custom config
         let mut config = Config::default();
         config.database.max_connections = 100;
-        config.redis.url = "redis://custom:6379".to_string();
+        config.tron.batch_size = 200;
         
         // Save config
         config.save(temp_path).await.unwrap();
@@ -419,7 +362,7 @@ mod tests {
         let loaded_config = Config::load(temp_path).await.unwrap();
         
         assert_eq!(loaded_config.database.max_connections, 100);
-        assert_eq!(loaded_config.redis.url, "redis://custom:6379");
+        assert_eq!(loaded_config.tron.batch_size, 200);
     }
 
     #[test]
@@ -429,8 +372,6 @@ mod tests {
         // Set environment variables
         env::set_var("DATABASE_URL", "postgresql://env:pass@localhost/env_db");
         env::set_var("DATABASE_MAX_CONNECTIONS", "50");
-        env::set_var("REDIS_URL", "redis://env:6379");
-        env::set_var("BLOCKCHAIN_START_BLOCK", "1000000");
         env::set_var("JWT_SECRET", "env_secret_key");
         
         // Apply environment overrides
@@ -438,15 +379,11 @@ mod tests {
         
         assert_eq!(config.database.url, "postgresql://env:pass@localhost/env_db");
         assert_eq!(config.database.max_connections, 50);
-        assert_eq!(config.redis.url, "redis://env:6379");
-        assert_eq!(config.blockchain.start_block, Some(1000000));
         assert_eq!(config.auth.jwt_secret, "env_secret_key");
         
         // Clean up environment variables
         env::remove_var("DATABASE_URL");
         env::remove_var("DATABASE_MAX_CONNECTIONS");
-        env::remove_var("REDIS_URL");
-        env::remove_var("BLOCKCHAIN_START_BLOCK");
         env::remove_var("JWT_SECRET");
     }
 

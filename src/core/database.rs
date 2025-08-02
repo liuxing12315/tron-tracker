@@ -814,14 +814,45 @@ impl Database {
     /// 获取系统配置
     pub async fn get_system_config(&self, key: &str) -> Result<Option<serde_json::Value>> {
         debug!("Getting system config: {}", key);
-        // TODO: 实现系统配置查询
-        Ok(None)
+        
+        let query = "SELECT value FROM system_config WHERE key = $1";
+        let row = sqlx::query(query)
+            .bind(key)
+            .fetch_optional(&self.pool)
+            .await
+            .map_err(|e| anyhow::anyhow!("Database error: {}", e))?;
+        
+        match row {
+            Some(row) => {
+                use sqlx::Row;
+                let value: serde_json::Value = row.get("value");
+                Ok(Some(value))
+            }
+            None => Ok(None)
+        }
     }
 
     /// 保存系统配置
-    pub async fn save_system_config(&self, key: &str, _value: &serde_json::Value) -> Result<()> {
+    pub async fn save_system_config(&self, key: &str, value: &serde_json::Value) -> Result<()> {
         debug!("Saving system config: {}", key);
-        // TODO: 实现系统配置保存
+        
+        let query = r#"
+            INSERT INTO system_config (key, value, updated_by)
+            VALUES ($1, $2, 'system')
+            ON CONFLICT (key) 
+            DO UPDATE SET 
+                value = EXCLUDED.value,
+                updated_by = EXCLUDED.updated_by,
+                updated_at = NOW()
+        "#;
+        
+        sqlx::query(query)
+            .bind(key)
+            .bind(value)
+            .execute(&self.pool)
+            .await
+            .map_err(|e| anyhow::anyhow!("Database error: {}", e))?;
+        
         Ok(())
     }
 
@@ -917,12 +948,6 @@ impl Database {
                 max_connections: 10,
                 total_connections: 10,
             },
-            redis_connection_pool: crate::api::handlers::admin::PoolStats {
-                active_connections: 2,
-                idle_connections: 8,
-                max_connections: 10,
-                total_connections: 10,
-            },
             cache_hit_rate: 85.5,
             average_query_time_ms: 12.3,
             slow_queries_count: 0,
@@ -962,8 +987,7 @@ impl Database {
             },
             cache_config: crate::api::handlers::admin::CacheConfig {
                 enabled: true,
-                redis_url: "redis://localhost:6379".to_string(),
-                max_connections: 10,
+                max_items: 100000,
                 default_ttl_seconds: 3600,
                 max_memory_mb: 512,
             },

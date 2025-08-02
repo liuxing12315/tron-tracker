@@ -862,12 +862,6 @@ impl Database {
                 max_connections: 10,
                 total_connections: 10,
             },
-            redis_connection_pool: crate::api::handlers::admin::PoolStats {
-                active_connections: 2,
-                idle_connections: 8,
-                max_connections: 10,
-                total_connections: 10,
-            },
             cache_hit_rate: 85.5,
             average_query_time_ms: 12.3,
             slow_queries_count: 0,
@@ -899,8 +893,7 @@ impl Database {
             },
             cache_config: crate::api::handlers::admin::CacheConfig {
                 enabled: true,
-                redis_url: "redis://localhost:6379".to_string(),
-                max_connections: 10,
+                max_items: 100000,
                 default_ttl_seconds: 3600,
                 max_memory_mb: 512,
             },

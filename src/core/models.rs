@@ -246,7 +246,7 @@ pub struct Pagination {
 }
 
 /// Transaction query parameters
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct TransactionQuery {
     pub address: Option<String>,
     pub hash: Option<String>,

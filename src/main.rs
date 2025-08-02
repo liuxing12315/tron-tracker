@@ -6,7 +6,6 @@
 use std::sync::Arc;
 use tokio::signal;
 use tracing::{info, error, warn};
-use tracing_subscriber;
 
 mod core;
 mod api;
@@ -15,7 +14,7 @@ mod services;
 use crate::core::{config::Config, database::Database};
 use crate::services::{
     auth::AuthService,
-    cache::CacheService,
+    local_cache::LocalCacheService,
     scanner::ScannerService,
     websocket::WebSocketService,
     webhook::WebhookService,
@@ -60,14 +59,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
     
     // 初始化缓存服务
-    let cache_service = match CacheService::new((*config).clone()).await {
+    let cache_service = match LocalCacheService::new((*config).clone()).await {
         Ok(cache) => {
-            info!("✅ Cache service initialized");
+            info!("✅ Local cache service initialized");
             Arc::new(cache)
         }
         Err(e) => {
-            warn!("⚠️ Cache service initialization failed: {}, continuing without cache", e);
-            Arc::new(CacheService::new_disabled())
+            warn!("⚠️ Local cache service initialization failed: {}, continuing without cache", e);
+            Arc::new(LocalCacheService::new_disabled())
         }
     };
     
@@ -226,7 +225,6 @@ async fn start_api_server(
     };
     use tower::ServiceBuilder;
     use tower_http::cors::{CorsLayer, Any};
-    use std::time::Duration;
     
     // 创建路由
     let app = Router::new()

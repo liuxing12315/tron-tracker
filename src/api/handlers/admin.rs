@@ -5,7 +5,7 @@
 use crate::core::database::Database;
 use crate::services::{
     auth::AuthService,
-    cache::CacheService,
+    local_cache::LocalCacheService,
     scanner::ScannerService,
     websocket::WebSocketService,
     webhook::WebhookService,
@@ -23,7 +23,7 @@ use tracing::{error, info};
 /// 管理后台应用状态
 pub struct AdminAppState {
     pub db: Database,
-    pub cache: CacheService,
+    pub cache: LocalCacheService,
     pub auth: AuthService,
     pub scanner: ScannerService,
     pub websocket: WebSocketService,
@@ -152,7 +152,6 @@ pub struct ScannerStats {
 #[derive(Debug, Serialize)]
 pub struct PerformanceMetrics {
     pub database_connection_pool: PoolStats,
-    pub redis_connection_pool: PoolStats,
     pub cache_hit_rate: f64,
     pub average_query_time_ms: f64,
     pub slow_queries_count: u64,
@@ -224,8 +223,7 @@ pub struct DatabaseConfig {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct CacheConfig {
     pub enabled: bool,
-    pub redis_url: String,
-    pub max_connections: u32,
+    pub max_items: u64,
     pub default_ttl_seconds: u64,
     pub max_memory_mb: u64,
 }
@@ -472,11 +470,8 @@ fn validate_system_config(config: &SystemConfig) -> Result<(), String> {
     }
     
     // 验证缓存配置
-    if config.cache_config.enabled && config.cache_config.redis_url.is_empty() {
-        return Err("Redis URL is required when cache is enabled".to_string());
-    }
-    if config.cache_config.max_connections == 0 || config.cache_config.max_connections > 1000 {
-        return Err("Cache max connections must be between 1 and 1000".to_string());
+    if config.cache_config.enabled && config.cache_config.max_items == 0 {
+        return Err("Cache max items must be greater than 0 when enabled".to_string());
     }
     if config.cache_config.default_ttl_seconds == 0 {
         return Err("Cache TTL must be greater than 0".to_string());
@@ -594,8 +589,7 @@ pub async fn reset_system_config(
         },
         cache_config: CacheConfig {
             enabled: true,
-            redis_url: "redis://localhost:6379".to_string(),
-            max_connections: 10,
+            max_items: 100000,
             default_ttl_seconds: 3600,
             max_memory_mb: 512,
         },

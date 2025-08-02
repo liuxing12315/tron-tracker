@@ -8,28 +8,6 @@ max_connections = 20
 min_connections = 5
 acquire_timeout = 30
 
-[redis]
-url = "redis://localhost:6379"
-max_connections = 10
-default_ttl = 300
-
-[blockchain]
-start_block = 62800000  # Recent block number, adjust as needed
-batch_size = 100
-scan_interval = 3  # seconds
-
-[[blockchain.nodes]]
-name = "TronGrid"
-url = "https://api.trongrid.io"
-priority = 1
-timeout = 30
-
-[[blockchain.nodes]]
-name = "GetBlock"
-url = "https://go.getblock.io"
-priority = 2
-timeout = 30
-
 [api]
 [api.rate_limit]
 requests_per_minute = 1000
@@ -66,6 +44,10 @@ api_key_length = 32
 api_key = ""
 # Default timeout for Tron API calls in seconds
 timeout = 30
+# Batch size for blockchain scanning
+batch_size = 100
+# Scan interval in seconds
+scan_interval = 3
 
 # Tron network nodes configuration
 [[tron.nodes]]

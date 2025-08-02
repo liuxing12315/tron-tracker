@@ -127,22 +127,48 @@ impl Scanner {
                 Ok(last_block + 1)
             }
             Ok(None) => {
-                // 数据库中没有记录，使用配置的起始区块
-                let start_block = self.config.blockchain.start_block.unwrap_or(62800000u64);
+                // 从system_config获取起始区块
+                let start_block = match self.db.get_system_config("start_block").await {
+                    Ok(Some(value)) => {
+                        match value.as_str() {
+                            Some(s) => s.parse::<u64>().unwrap_or(62800000u64),
+                            None => value.as_u64().unwrap_or(62800000u64),
+                        }
+                    }
+                    Ok(None) => {
+                        // 如果没有配置，使用默认值并保存
+                        let default_start_block = 62800000u64;
+                        let _ = self.db.save_system_config("start_block", &serde_json::json!(default_start_block.to_string())).await;
+                        default_start_block
+                    }
+                    Err(e) => {
+                        warn!("Failed to get start_block from system_config: {}", e);
+                        62800000u64
+                    }
+                };
                 info!("Starting from configured block: {}", start_block);
                 Ok(start_block)
             }
             Err(e) => {
                 warn!("Failed to get last processed block from database: {}", e);
-                // 使用配置的起始区块作为后备
-                Ok(self.config.blockchain.start_block.unwrap_or(62800000u64))
+                // 从system_config获取起始区块作为后备
+                match self.db.get_system_config("start_block").await {
+                    Ok(Some(value)) => {
+                        let start_block = match value.as_str() {
+                            Some(s) => s.parse::<u64>().unwrap_or(62800000u64),
+                            None => value.as_u64().unwrap_or(62800000u64),
+                        };
+                        Ok(start_block)
+                    }
+                    _ => Ok(62800000u64)
+                }
             }
         }
     }
 
     /// 主扫描循环
     async fn scan_loop(&self) -> Result<()> {
-        let mut scan_interval = interval(Duration::from_secs(self.config.blockchain.scan_interval));
+        let mut scan_interval = interval(Duration::from_secs(self.config.tron.scan_interval));
         let mut speed_calculation_interval = interval(Duration::from_secs(60)); // 每分钟计算一次速度
         let mut last_block_count = 0u64;
         let mut last_speed_check = std::time::Instant::now();
@@ -195,7 +221,7 @@ impl Scanner {
         }
 
         // 计算要扫描的区块范围
-        let batch_size = self.config.blockchain.batch_size as u64;
+        let batch_size = self.config.tron.batch_size as u64;
         let end_block = std::cmp::min(current_block + batch_size - 1, latest_block);
 
         // info!("Scanning blocks {} to {}", current_block, end_block);
