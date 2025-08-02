@@ -1,14 +1,14 @@
 // 区块链扫描器服务
-// 
+//
 // 负责扫描 Tron 区块链，提取交易数据并存储到数据库
 
 use crate::core::{config::Config, database::Database, models::*, tron_client::TronClient};
 use anyhow::Result;
 use std::sync::Arc;
 use std::time::Duration;
-use tokio::sync::{RwLock, mpsc};
-use tokio::time::{sleep, interval};
-use tracing::{info, warn, error, debug};
+use tokio::sync::{mpsc, RwLock};
+use tokio::time::{interval, sleep};
+use tracing::{debug, error, info, warn};
 
 /// 扫描器状态
 #[derive(Debug, Clone)]
@@ -60,7 +60,7 @@ impl Scanner {
     /// 创建新的扫描器实例
     pub fn new(config: Config, db: Database) -> Result<Self> {
         let tron_client = TronClient::new(config.tron.clone())?;
-        
+
         Ok(Self {
             config,
             db,
@@ -157,7 +157,7 @@ impl Scanner {
                     if let Err(e) = self.scan_next_blocks().await {
                         error!("Scan error: {}", e);
                         self.update_error_state(e.to_string()).await;
-                        
+
                         // 错误后等待一段时间再重试
                         sleep(Duration::from_secs(10)).await;
                     }
@@ -176,7 +176,7 @@ impl Scanner {
     async fn scan_next_blocks(&self) -> Result<()> {
         // 获取最新区块号
         let latest_block = self.tron_client.get_latest_block_number().await?;
-        
+
         // 更新最新区块号
         {
             let mut state = self.state.write().await;
@@ -184,10 +184,13 @@ impl Scanner {
         }
 
         let current_block = self.state.read().await.current_block;
-        
+
         // 检查是否需要扫描
         if current_block >= latest_block {
-            debug!("No new blocks to scan. Current: {}, Latest: {}", current_block, latest_block);
+            debug!(
+                "No new blocks to scan. Current: {}, Latest: {}",
+                current_block, latest_block
+            );
             return Ok(());
         }
 
@@ -195,7 +198,7 @@ impl Scanner {
         let batch_size = self.config.blockchain.batch_size as u64;
         let end_block = std::cmp::min(current_block + batch_size - 1, latest_block);
 
-        info!("Scanning blocks {} to {}", current_block, end_block);
+        // info!("Scanning blocks {} to {}", current_block, end_block);
 
         // 扫描区块范围
         for block_number in current_block..=end_block {
@@ -205,8 +208,11 @@ impl Scanner {
 
             match self.scan_block(block_number).await {
                 Ok(transaction_count) => {
-                    debug!("Scanned block {} with {} transactions", block_number, transaction_count);
-                    
+                    debug!(
+                        "Scanned block {} with {} transactions",
+                        block_number, transaction_count
+                    );
+
                     // 更新状态
                     {
                         let mut state = self.state.write().await;
@@ -232,26 +238,26 @@ impl Scanner {
 
     /// 扫描单个区块
     async fn scan_block(&self, block_number: u64) -> Result<u64> {
-        debug!("Scanning block {}", block_number);
+        // debug!("Scanning block {}", block_number);
 
         // 获取区块数据
         let block_data = self.tron_client.get_block_by_number(block_number).await?;
 
         // 处理区块中的交易
         let mut processed_transactions = 0u64;
-        
+
         for transaction in &block_data.transactions {
             match self.process_transaction(transaction).await {
                 Ok(_) => {
                     processed_transactions += 1;
-                    
+
                     // 发送交易事件通知
                     if let Some(sender) = &self.notification_sender {
                         let event = TransactionEvent {
                             transaction: transaction.clone(),
                             event_type: crate::core::models::NotificationEventType::Transaction,
                         };
-                        
+
                         if let Err(e) = sender.send(event) {
                             warn!("Failed to send transaction event: {}", e);
                         }
@@ -268,7 +274,10 @@ impl Scanner {
             warn!("Failed to save block {}: {}", block_number, e);
         }
 
-        info!("Processed block {} with {} transactions", block_number, processed_transactions);
+        // info!(
+        //     "Processed block {} with {} transactions",
+        //     block_number, processed_transactions
+        // );
         Ok(processed_transactions)
     }
 
@@ -285,7 +294,7 @@ impl Scanner {
                 transaction: transaction.clone(),
                 event_type: crate::core::models::NotificationEventType::Transaction,
             };
-            
+
             if let Err(e) = sender.send(event) {
                 warn!("Failed to send transaction event: {}", e);
             }
@@ -294,27 +303,30 @@ impl Scanner {
         Ok(())
     }
 
-
     /// 计算扫描速度
-    async fn calculate_scan_speed(&self, last_block_count: &mut u64, last_check: &mut std::time::Instant) {
+    async fn calculate_scan_speed(
+        &self,
+        last_block_count: &mut u64,
+        last_check: &mut std::time::Instant,
+    ) {
         let current_state = self.state.read().await;
         let current_block_count = current_state.current_block;
         let now = std::time::Instant::now();
-        
+
         let time_elapsed = now.duration_since(*last_check).as_secs_f64() / 60.0; // 转换为分钟
-        
+
         if time_elapsed > 0.0 && *last_block_count > 0 {
             let blocks_processed = current_block_count.saturating_sub(*last_block_count);
             let speed = blocks_processed as f64 / time_elapsed;
-            
+
             drop(current_state); // 释放读锁
-            
+
             let mut state = self.state.write().await;
             state.scan_speed = speed;
-            
+
             debug!("Scan speed: {:.2} blocks/minute", speed);
         }
-        
+
         *last_block_count = current_block_count;
         *last_check = now;
     }
@@ -356,7 +368,7 @@ impl Scanner {
     /// 获取扫描统计信息（为Admin API使用）
     pub async fn get_statistics(&self) -> Result<crate::api::handlers::admin::ScannerStats> {
         let state = self.state.read().await;
-        
+
         Ok(crate::api::handlers::admin::ScannerStats {
             current_block: state.current_block,
             latest_block: state.latest_block,
@@ -365,14 +377,18 @@ impl Scanner {
             transactions_processed_today: state.total_transactions,
             errors_today: state.error_count,
             last_scan_time: chrono::Utc::now(),
-            scan_status: if state.is_running { "running".to_string() } else { "stopped".to_string() },
+            scan_status: if state.is_running {
+                "running".to_string()
+            } else {
+                "stopped".to_string()
+            },
         })
     }
 
     /// 获取扫描统计信息（原始版本）
     pub async fn get_scanner_statistics(&self) -> Result<ScannerStatistics> {
         let state = self.state.read().await;
-        
+
         Ok(ScannerStatistics {
             current_block: state.current_block,
             latest_block: state.latest_block,
@@ -408,7 +424,7 @@ impl Scanner {
         let start_time = std::time::Instant::now();
         let transactions_count = self.scan_specific_block(block_number).await?;
         let processing_time_ms = start_time.elapsed().as_millis() as u64;
-        
+
         Ok(ScanBlockResult {
             transactions_count,
             processing_time_ms,
@@ -452,12 +468,10 @@ mod tests {
             error_count: 0,
             last_error: None,
         };
-        
+
         assert!(!state.is_running);
         assert_eq!(state.current_block, 0);
         assert_eq!(state.total_transactions, 0);
         assert_eq!(state.error_count, 0);
     }
-
 }
-
