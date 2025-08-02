@@ -11,6 +11,18 @@ export const useApp = () => {
   return context;
 };
 
+export const useNotification = () => {
+  const context = useContext(AppContext);
+  if (!context) {
+    throw new Error('useNotification must be used within an AppProvider');
+  }
+  return {
+    addNotification: context.addNotification,
+    removeNotification: context.removeNotification,
+    notifications: context.notifications
+  };
+};
+
 const initialState = {
   systemStats: {
     totalTransactions: 0,
