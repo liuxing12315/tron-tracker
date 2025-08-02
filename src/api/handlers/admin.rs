@@ -461,7 +461,7 @@ fn validate_system_config(config: &SystemConfig) -> Result<(), String> {
     }
     
     // 验证数据库配置
-    if config.database_config.port == 0 || config.database_config.port > 65535 {
+    if config.database_config.port == 0 {
         return Err("Database port must be between 1 and 65535".to_string());
     }
     if config.database_config.max_connections == 0 || config.database_config.max_connections > 1000 {
@@ -483,7 +483,7 @@ fn validate_system_config(config: &SystemConfig) -> Result<(), String> {
     }
     
     // 验证API配置
-    if config.api_config.port == 0 || config.api_config.port > 65535 {
+    if config.api_config.port == 0 {
         return Err("API port must be between 1 and 65535".to_string());
     }
     if config.api_config.default_rate_limit == 0 {
@@ -511,7 +511,7 @@ fn validate_system_config(config: &SystemConfig) -> Result<(), String> {
     
     // 验证WebSocket配置
     if config.websocket_config.enabled {
-        if config.websocket_config.port == 0 || config.websocket_config.port > 65535 {
+        if config.websocket_config.port == 0 {
             return Err("WebSocket port must be between 1 and 65535".to_string());
         }
         if config.websocket_config.max_connections == 0 || config.websocket_config.max_connections > 100000 {
@@ -796,7 +796,7 @@ pub async fn get_cache_stats(
 
 /// 获取日志统计
 pub async fn get_log_stats(
-    State(state): State<Arc<AdminAppState>>,
+    State(_state): State<Arc<AdminAppState>>,
 ) -> Result<Json<serde_json::Value>, StatusCode> {
     // 这里应该实现真实的日志统计查询
     // 暂时返回模拟数据

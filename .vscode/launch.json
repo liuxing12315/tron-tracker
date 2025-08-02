@@ -11,7 +11,9 @@
       "stopOnEntry": false,
       "environment": [],
       "externalConsole": false,
-      "MIMode": "lldb",
+      "sourceLanguages": [
+        "rust"
+      ],
       "preLaunchTask": "start-backend"
     },
     {
@@ -27,7 +29,10 @@
       "type": "composite",
       "request": "launch",
       "stopAll": true,
-      "configurations": ["Launch Backend", "Launch Frontend"]
+      "configurations": [
+        "Launch Backend",
+        "Launch Frontend"
+      ]
     }
   ]
 }

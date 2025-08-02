@@ -4,94 +4,53 @@
     {
       "label": "start-backend",
       "type": "shell",
-      "command": "cargo run",
+      "command": "cargo",
+      "args": [
+        "build",
+        "--bin",
+        "tron-tracker"
+      ],
       "group": "build",
       "presentation": {
         "echo": true,
         "reveal": "always",
         "focus": false,
-        "panel": "shared",
-        "showReuseMessage": true,
-        "clear": false
+        "panel": "shared"
       },
-      "options": {
-        "cwd": "${workspaceFolder}"
-      },
-      "problemMatcher": {
-        "owner": "rust",
-        "fileLocation": "absolute",
-        "pattern": {
-          "regexp": "^(.*):(\\d+):(\\d+):\\s+(.*)$",
-          "file": 1,
-          "line": 2,
-          "column": 3,
-          "severity": 4,
-          "message": 5
-        }
-      },
-      "isBackground": true,
-      "group": {
-        "kind": "build",
-        "isDefault": true
-      }
+      "problemMatcher": [
+        "$rustc"
+      ]
     },
     {
       "label": "start-frontend",
       "type": "shell",
-      "command": "pnpm dev",
+      "command": "cd",
+      "args": [
+        "admin-ui",
+        "&&",
+        "npm",
+        "run",
+        "dev"
+      ],
       "group": "build",
       "presentation": {
         "echo": true,
         "reveal": "always",
         "focus": false,
-        "panel": "shared",
-        "showReuseMessage": true,
-        "clear": false
-      },
-      "options": {
-        "cwd": "${workspaceFolder}/admin-ui"
+        "panel": "shared"
       },
       "isBackground": true,
       "problemMatcher": {
-        "owner": "typescript",
-        "fileLocation": "absolute",
+        "owner": "custom",
         "pattern": {
-          "regexp": "^(.*):(\\d+):(\\d+):\\s+(.*)$",
-          "file": 1,
-          "line": 2,
-          "column": 3,
-          "severity": 4,
-          "message": 5
+          "regexp": "^(.*)$"
         },
         "background": {
           "activeOnStart": true,
           "beginsPattern": ".*",
-          "endsPattern": ".*http://localhost:5173.*"
+          "endsPattern": ".*"
         }
-      },
-      "group": {
-        "kind": "build",
-        "isDefault": true
       }
-    },
-    {
-      "label": "start-all",
-      "type": "shell",
-      "command": "echo 'Starting both backend and frontend...'",
-      "group": "build",
-      "presentation": {
-        "echo": true,
-        "reveal": "always",
-        "focus": false,
-        "panel": "new",
-        "showReuseMessage": true,
-        "clear": true
-      },
-      "dependsOn": [
-        "start-backend",
-        "start-frontend"
-      ],
-      "dependsOrder": "parallel"
     }
   ]
 }
