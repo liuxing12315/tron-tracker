@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { LoadingSpinner } from '@/components/LoadingSpinner'
 import { useAsync } from '@/hooks/useAsync'
-import { useNotification } from '@/contexts/AppContext'
+import { useApp } from '@/contexts/AppContext'
 import { logService } from '@/services/logService'
 
 export function Logs() {
@@ -20,7 +20,7 @@ export function Logs() {
   const [limit] = useState(50)
   const [logStats, setLogStats] = useState(null)
   
-  const { addNotification } = useNotification()
+  const { addNotification } = useApp()
   
   // 获取日志数据
   const {
