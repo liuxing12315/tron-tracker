@@ -5,7 +5,12 @@
       "Bash(find:*)",
       "Bash(rustc:*)",
       "Bash(grep:*)",
-      "Bash(timeout 120 cargo test --quiet)"
+      "Bash(timeout 120 cargo test --quiet)",
+      "Bash(npm run build:*)",
+      "Bash(pnpm install:*)",
+      "Bash(pnpm run:*)",
+      "Bash(mv:*)",
+      "Bash(git add:*)"
     ],
     "deny": []
   }

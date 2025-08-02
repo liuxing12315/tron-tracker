@@ -432,13 +432,221 @@ pub async fn update_system_config(
     State(state): State<Arc<AdminAppState>>,
     Json(config): Json<SystemConfig>,
 ) -> Result<Json<SystemConfig>, StatusCode> {
+    // 验证配置
+    if let Err(validation_error) = validate_system_config(&config) {
+        error!("Configuration validation failed: {}", validation_error);
+        return Err(StatusCode::BAD_REQUEST);
+    }
+    
     match state.db.update_system_config(&config).await {
         Ok(_) => {
-            info!("System configuration updated");
+            info!("System configuration updated successfully");
             Ok(Json(config))
         }
         Err(e) => {
             error!("Failed to update system config: {}", e);
+            Err(StatusCode::INTERNAL_SERVER_ERROR)
+        }
+    }
+}
+
+/// 验证系统配置
+fn validate_system_config(config: &SystemConfig) -> Result<(), String> {
+    // 验证扫描器配置
+    if config.scanner_config.scan_interval_ms < 1000 {
+        return Err("Scanner interval must be at least 1000ms".to_string());
+    }
+    if config.scanner_config.batch_size < 1 || config.scanner_config.batch_size > 1000 {
+        return Err("Scanner batch size must be between 1 and 1000".to_string());
+    }
+    
+    // 验证数据库配置
+    if config.database_config.port == 0 || config.database_config.port > 65535 {
+        return Err("Database port must be between 1 and 65535".to_string());
+    }
+    if config.database_config.max_connections == 0 || config.database_config.max_connections > 1000 {
+        return Err("Database max connections must be between 1 and 1000".to_string());
+    }
+    if config.database_config.connection_timeout_ms < 1000 {
+        return Err("Database connection timeout must be at least 1000ms".to_string());
+    }
+    
+    // 验证缓存配置
+    if config.cache_config.enabled && config.cache_config.redis_url.is_empty() {
+        return Err("Redis URL is required when cache is enabled".to_string());
+    }
+    if config.cache_config.max_connections == 0 || config.cache_config.max_connections > 1000 {
+        return Err("Cache max connections must be between 1 and 1000".to_string());
+    }
+    if config.cache_config.default_ttl_seconds == 0 {
+        return Err("Cache TTL must be greater than 0".to_string());
+    }
+    
+    // 验证API配置
+    if config.api_config.port == 0 || config.api_config.port > 65535 {
+        return Err("API port must be between 1 and 65535".to_string());
+    }
+    if config.api_config.default_rate_limit == 0 {
+        return Err("API rate limit must be greater than 0".to_string());
+    }
+    if config.api_config.request_timeout_ms < 1000 {
+        return Err("API request timeout must be at least 1000ms".to_string());
+    }
+    
+    // 验证Webhook配置
+    if config.webhook_config.enabled {
+        if config.webhook_config.max_retries > 10 {
+            return Err("Webhook max retries must not exceed 10".to_string());
+        }
+        if config.webhook_config.retry_delay_ms < 100 {
+            return Err("Webhook retry delay must be at least 100ms".to_string());
+        }
+        if config.webhook_config.timeout_ms < 1000 {
+            return Err("Webhook timeout must be at least 1000ms".to_string());
+        }
+        if config.webhook_config.max_concurrent_deliveries == 0 || config.webhook_config.max_concurrent_deliveries > 1000 {
+            return Err("Webhook max concurrent deliveries must be between 1 and 1000".to_string());
+        }
+    }
+    
+    // 验证WebSocket配置
+    if config.websocket_config.enabled {
+        if config.websocket_config.port == 0 || config.websocket_config.port > 65535 {
+            return Err("WebSocket port must be between 1 and 65535".to_string());
+        }
+        if config.websocket_config.max_connections == 0 || config.websocket_config.max_connections > 100000 {
+            return Err("WebSocket max connections must be between 1 and 100000".to_string());
+        }
+        if config.websocket_config.heartbeat_interval_ms < 5000 {
+            return Err("WebSocket heartbeat interval must be at least 5000ms".to_string());
+        }
+        if config.websocket_config.message_buffer_size == 0 || config.websocket_config.message_buffer_size > 10000 {
+            return Err("WebSocket message buffer size must be between 1 and 10000".to_string());
+        }
+    }
+    
+    // 验证节点配置
+    for node in &config.scanner_config.nodes {
+        if node.url.is_empty() {
+            return Err("Node URL cannot be empty".to_string());
+        }
+        if !node.url.starts_with("http://") && !node.url.starts_with("https://") {
+            return Err("Node URL must start with http:// or https://".to_string());
+        }
+        if node.timeout_ms < 1000 {
+            return Err("Node timeout must be at least 1000ms".to_string());
+        }
+    }
+    
+    Ok(())
+}
+
+/// 验证系统配置但不保存
+pub async fn validate_config(
+    Json(config): Json<SystemConfig>,
+) -> Result<Json<serde_json::Value>, StatusCode> {
+    match validate_system_config(&config) {
+        Ok(_) => {
+            Ok(Json(serde_json::json!({
+                "valid": true,
+                "message": "Configuration is valid"
+            })))
+        }
+        Err(validation_error) => {
+            Ok(Json(serde_json::json!({
+                "valid": false,
+                "error": validation_error
+            })))
+        }
+    }
+}
+
+/// 重置系统配置为默认值
+pub async fn reset_system_config(
+    State(state): State<Arc<AdminAppState>>,
+) -> Result<Json<SystemConfig>, StatusCode> {
+    // 创建默认配置
+    let default_config = SystemConfig {
+        scanner_config: ScannerConfig {
+            enabled: true,
+            scan_interval_ms: 5000,
+            batch_size: 10,
+            start_block: Some(62800000),
+            end_block: None,
+            nodes: vec![
+                NodeConfig {
+                    name: "TronGrid".to_string(),
+                    url: "https://api.trongrid.io".to_string(),
+                    api_key: None,
+                    priority: 1,
+                    enabled: true,
+                    timeout_ms: 30000,
+                },
+            ],
+        },
+        database_config: DatabaseConfig {
+            host: "localhost".to_string(),
+            port: 5432,
+            database: "tron_tracker".to_string(),
+            username: "postgres".to_string(),
+            max_connections: 10,
+            connection_timeout_ms: 30000,
+        },
+        cache_config: CacheConfig {
+            enabled: true,
+            redis_url: "redis://localhost:6379".to_string(),
+            max_connections: 10,
+            default_ttl_seconds: 3600,
+            max_memory_mb: 512,
+        },
+        api_config: ApiConfig {
+            host: "0.0.0.0".to_string(),
+            port: 8080,
+            cors_enabled: true,
+            rate_limit_enabled: true,
+            default_rate_limit: 1000,
+            request_timeout_ms: 30000,
+        },
+        webhook_config: WebhookConfig {
+            enabled: true,
+            max_retries: 3,
+            retry_delay_ms: 1000,
+            timeout_ms: 30000,
+            max_concurrent_deliveries: 10,
+        },
+        websocket_config: WebSocketConfig {
+            enabled: true,
+            port: 8081,
+            max_connections: 1000,
+            heartbeat_interval_ms: 30000,
+            message_buffer_size: 1000,
+        },
+    };
+    
+    match state.db.update_system_config(&default_config).await {
+        Ok(_) => {
+            info!("System configuration reset to defaults");
+            Ok(Json(default_config))
+        }
+        Err(e) => {
+            error!("Failed to reset system config: {}", e);
+            Err(StatusCode::INTERNAL_SERVER_ERROR)
+        }
+    }
+}
+
+/// 获取配置变更历史
+pub async fn get_config_history(
+    State(state): State<Arc<AdminAppState>>,
+    Query(query): Query<serde_json::Value>,
+) -> Result<Json<serde_json::Value>, StatusCode> {
+    let page = query.get("page").and_then(|v| v.as_u64()).unwrap_or(1) as u32;
+    let limit = query.get("limit").and_then(|v| v.as_u64()).unwrap_or(20) as u32;
+    
+    match state.db.get_config_history(page, limit).await {
+        Ok(history) => Ok(Json(history)),
+        Err(e) => {
+            error!("Failed to get config history: {}", e);
             Err(StatusCode::INTERNAL_SERVER_ERROR)
         }
     }

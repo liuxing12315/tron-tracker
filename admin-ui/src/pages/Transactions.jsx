@@ -6,92 +6,109 @@ import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-
-const mockTransactions = [
-  {
-    id: '1',
-    hash: '0x1a2b3c4d5e6f7890abcdef1234567890abcdef12345678901234567890abcdef',
-    blockNumber: 62845149,
-    from: 'TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t',
-    to: 'TLa2f6VPqDgRE67v1736s7bJ8Ray5wYjU7',
-    value: '1250.50',
-    token: 'USDT',
-    status: 'success',
-    timestamp: '2024-01-15T10:30:00Z',
-    gasUsed: '14500',
-    gasPrice: '420'
-  },
-  {
-    id: '2',
-    hash: '0x2b3c4d5e6f7890abcdef1234567890abcdef12345678901234567890abcdef12',
-    blockNumber: 62845148,
-    from: 'TLa2f6VPqDgRE67v1736s7bJ8Ray5wYjU7',
-    to: 'TKzxdSv2FZKQrEqkKVgp5DcwEXBEKMg2Ax',
-    value: '500.00',
-    token: 'USDT',
-    status: 'success',
-    timestamp: '2024-01-15T10:25:00Z',
-    gasUsed: '14200',
-    gasPrice: '420'
-  },
-  {
-    id: '3',
-    hash: '0x3c4d5e6f7890abcdef1234567890abcdef12345678901234567890abcdef123a',
-    blockNumber: 62845147,
-    from: 'TKzxdSv2FZKQrEqkKVgp5DcwEXBEKMg2Ax',
-    to: 'TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t',
-    value: '10000.00',
-    token: 'USDT',
-    status: 'pending',
-    timestamp: '2024-01-15T10:20:00Z',
-    gasUsed: '15000',
-    gasPrice: '420'
-  },
-  {
-    id: '4',
-    hash: '0x4d5e6f7890abcdef1234567890abcdef12345678901234567890abcdef123a2b',
-    blockNumber: 62845146,
-    from: 'TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t',
-    to: 'TLa2f6VPqDgRE67v1736s7bJ8Ray5wYjU7',
-    value: '75.25',
-    token: 'USDT',
-    status: 'failed',
-    timestamp: '2024-01-15T10:15:00Z',
-    gasUsed: '0',
-    gasPrice: '420'
-  }
-]
+import { transactionService } from '../services'
 
 export function Transactions() {
-  const [transactions, setTransactions] = useState(mockTransactions)
+  const [transactions, setTransactions] = useState([])
   const [searchQuery, setSearchQuery] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
   const [tokenFilter, setTokenFilter] = useState('all')
   const [loading, setLoading] = useState(false)
+  const [initialLoading, setInitialLoading] = useState(true)
   const [currentPage, setCurrentPage] = useState(1)
-  const [totalPages, setTotalPages] = useState(10)
+  const [totalCount, setTotalCount] = useState(0)
+  const [error, setError] = useState(null)
+  
+  const limit = 20
+  const totalPages = Math.ceil(totalCount / limit)
+
+  // Load transactions on component mount and when filters change
+  useEffect(() => {
+    loadTransactions()
+  }, [currentPage, statusFilter, tokenFilter])
+
+  const loadTransactions = async () => {
+    try {
+      setError(null)
+      const filters = {}
+      
+      if (statusFilter !== 'all') {
+        filters.status = statusFilter
+      }
+      if (tokenFilter !== 'all') {
+        filters.token = tokenFilter
+      }
+
+      const pagination = {
+        page: currentPage,
+        limit: limit
+      }
+
+      const result = await transactionService.getTransactions(filters, pagination)
+      setTransactions(result.transactions || [])
+      setTotalCount(result.total_count || 0)
+    } catch (error) {
+      console.error('Failed to load transactions:', error)
+      setError(error.message)
+    } finally {
+      setInitialLoading(false)
+    }
+  }
 
   const handleSearch = async () => {
+    if (!searchQuery.trim()) {
+      loadTransactions()
+      return
+    }
+
     setLoading(true)
-    // Simulate API call
-    setTimeout(() => {
+    try {
+      setError(null)
+      
+      if (searchQuery.includes(',')) {
+        // Multi-address query
+        await handleMultiAddressQuery()
+      } else {
+        // Single search query
+        const filters = {
+          status: statusFilter !== 'all' ? statusFilter : undefined,
+          token: tokenFilter !== 'all' ? tokenFilter : undefined
+        }
+        
+        const pagination = { page: 1, limit: limit }
+        const result = await transactionService.searchTransactions(searchQuery, filters, pagination)
+        
+        setTransactions(result.transactions || [])
+        setTotalCount(result.total_count || 0)
+        setCurrentPage(1)
+      }
+    } catch (error) {
+      console.error('Search failed:', error)
+      setError(error.message)
+    } finally {
       setLoading(false)
-    }, 1000)
+    }
   }
 
   const handleMultiAddressQuery = async () => {
     const addresses = searchQuery.split(',').map(addr => addr.trim()).filter(addr => addr)
     if (addresses.length === 0) return
 
-    setLoading(true)
     try {
-      // Simulate multi-address API call
-      setTimeout(() => {
-        setLoading(false)
-      }, 1500)
+      const filters = {
+        status: statusFilter !== 'all' ? statusFilter : undefined,
+        token: tokenFilter !== 'all' ? tokenFilter : undefined
+      }
+      
+      const pagination = { page: 1, limit: limit }
+      const result = await transactionService.getMultiAddressTransactions(addresses, filters, pagination)
+      
+      setTransactions(result.transactions || [])
+      setTotalCount(result.total_count || 0)
+      setCurrentPage(1)
     } catch (error) {
       console.error('Multi-address query failed:', error)
-      setLoading(false)
+      setError(error.message)
     }
   }
 

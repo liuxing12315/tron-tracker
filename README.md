@@ -26,8 +26,8 @@ TRX Tracker 填补了 Tron 节点功能空白，为开发者提供：
 
 ### 技术特点
 
-- **高性能**: Rust 实现，10,000+ TPS
-- **低延迟**: API < 50ms, WebSocket < 10ms  
+- **高性能**: Rust 实现，异步处理
+- **低延迟**: 缓存优化，快速响应
 - **可扩展**: 模块化架构，易于扩展
 - **生产就绪**: 包含监控、日志、错误处理
 
@@ -196,27 +196,17 @@ curl -X POST http://localhost:8080/api/v1/webhooks \
 ## 🔐 Security
 
 ### API Authentication
-All API endpoints support multiple authentication methods:
+All API endpoints require authentication using API keys:
 
 - **API Keys**: Bearer token authentication
-- **JWT Tokens**: For session-based access
-- **IP Whitelisting**: Restrict access by IP address
 
 ### Webhook Security
 - **Signature Verification**: HMAC-SHA256 request signing
 - **SSL/TLS**: HTTPS-only webhook delivery
 - **Retry Logic**: Exponential backoff for failed deliveries
 
-## 📈 性能指标
+## 🔧 优化特性
 
-### 测试结果
-- **交易处理**: 10,000+ TPS
-- **批量查询**: 100个地址 < 200ms
-- **API 响应**: 平均 < 50ms
-- **WebSocket 延迟**: < 10ms
-- **内存占用**: < 1GB (1万连接)
-
-### 优化特性
 - **连接池**: 数据库连接复用
 - **Redis 缓存**: 多层缓存架构
 - **批量处理**: 100块/批扫描
@@ -311,4 +301,3 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 ---
 
 **TRX Tracker** - 专注于 Tron 节点功能增强的区块链数据服务
-

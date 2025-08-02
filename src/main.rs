@@ -239,6 +239,9 @@ async fn start_api_server(
         // 系统配置 API
         .route("/api/admin/config", get(crate::api::handlers::admin::get_system_config))
         .route("/api/admin/config", put(crate::api::handlers::admin::update_system_config))
+        .route("/api/admin/config/validate", post(crate::api::handlers::admin::validate_config))
+        .route("/api/admin/config/reset", post(crate::api::handlers::admin::reset_system_config))
+        .route("/api/admin/config/history", get(crate::api::handlers::admin::get_config_history))
         
         // 日志管理 API
         .route("/api/admin/logs", get(crate::api::handlers::admin::get_logs))
@@ -262,6 +265,28 @@ async fn start_api_server(
         // 地址查询 API
         .route("/api/v1/addresses/:address", get(crate::api::handlers::transaction::get_address_info))
         .route("/api/v1/addresses/:address/transactions", get(crate::api::handlers::transaction::get_address_transactions))
+        
+        // API Key 管理 API
+        .route("/api/v1/api-keys", get(crate::api::handlers::api_key::list_api_keys))
+        .route("/api/v1/api-keys", post(crate::api::handlers::api_key::create_api_key))
+        .route("/api/v1/api-keys/:key_id", get(crate::api::handlers::api_key::get_api_key))
+        .route("/api/v1/api-keys/:key_id", put(crate::api::handlers::api_key::update_api_key))
+        .route("/api/v1/api-keys/:key_id", delete(crate::api::handlers::api_key::delete_api_key))
+        .route("/api/v1/api-keys/:key_id/regenerate", post(crate::api::handlers::api_key::regenerate_api_key))
+        .route("/api/v1/api-keys/:key_id/usage", get(crate::api::handlers::api_key::get_api_key_usage))
+        .route("/api/v1/api-keys/test", post(crate::api::handlers::api_key::test_api_key))
+        .route("/api/v1/api-keys/permissions", get(crate::api::handlers::api_key::get_available_permissions))
+        
+        // Webhook 管理 API
+        .route("/api/v1/webhooks", get(crate::api::handlers::webhook::list_webhooks))
+        .route("/api/v1/webhooks", post(crate::api::handlers::webhook::create_webhook))
+        .route("/api/v1/webhooks/:webhook_id", get(crate::api::handlers::webhook::get_webhook))
+        .route("/api/v1/webhooks/:webhook_id", put(crate::api::handlers::webhook::update_webhook))
+        .route("/api/v1/webhooks/:webhook_id", delete(crate::api::handlers::webhook::delete_webhook))
+        .route("/api/v1/webhooks/:webhook_id/test", post(crate::api::handlers::webhook::test_webhook))
+        .route("/api/v1/webhooks/:webhook_id/retry", post(crate::api::handlers::webhook::retry_webhook))
+        .route("/api/v1/webhooks/:webhook_id/logs", get(crate::api::handlers::webhook::get_webhook_logs))
+        .route("/api/v1/webhooks/events", get(crate::api::handlers::webhook::get_available_events))
         
         // 添加中间件
         .layer(

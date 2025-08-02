@@ -1,12 +1,15 @@
 import { useState } from 'react'
-import { Menu, Bell, Search, RefreshCw, AlertCircle, CheckCircle } from 'lucide-react'
+import { Menu, Bell, Search, RefreshCw, AlertCircle, CheckCircle, LogOut, User } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
+import { useAuth } from '../contexts/AuthContext'
+import { WebSocketStatus } from './WebSocketStatus'
 
 export function Header({ onMenuClick, systemStats }) {
   const [searchQuery, setSearchQuery] = useState('')
   const [isRefreshing, setIsRefreshing] = useState(false)
+  const { logout, permissions } = useAuth()
 
   const handleRefresh = async () => {
     setIsRefreshing(true)
@@ -127,6 +130,29 @@ export function Header({ onMenuClick, systemStats }) {
               3
             </Badge>
           </Button>
+
+          {/* WebSocket Status */}
+          <WebSocketStatus />
+
+          {/* User Menu */}
+          <div className="flex items-center space-x-2">
+            <Button variant="ghost" size="sm" className="flex items-center space-x-2">
+              <User className="w-4 h-4" />
+              <span className="hidden md:inline text-sm">
+                {permissions.includes('admin') ? 'Admin' : 'User'}
+              </span>
+            </Button>
+            
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              onClick={logout}
+              className="flex items-center space-x-2"
+            >
+              <LogOut className="w-4 h-4" />
+              <span className="hidden md:inline text-sm">Logout</span>
+            </Button>
+          </div>
         </div>
       </div>
     </header>

@@ -48,22 +48,6 @@ Error responses include detailed information:
 }
 ```
 
-## Rate Limiting
-
-API requests are rate limited based on your API key tier:
-
-- **Free Tier**: 100 requests/minute
-- **Pro Tier**: 1,000 requests/minute  
-- **Enterprise Tier**: 10,000 requests/minute
-
-Rate limit headers are included in all responses:
-
-```
-X-RateLimit-Limit: 1000
-X-RateLimit-Remaining: 999
-X-RateLimit-Reset: 1640995200
-```
-
 ## Endpoints
 
 ### Health Check
@@ -466,7 +450,6 @@ List API keys for your account.
         "read_addresses",
         "manage_webhooks"
       ],
-      "rate_limit": 1000,
       "created_at": "2024-01-01T00:00:00Z",
       "last_used": "2024-01-15T10:25:00Z",
       "usage_stats": {
@@ -491,8 +474,6 @@ Create a new API key.
     "read_addresses",
     "manage_webhooks"
   ],
-  "rate_limit": 1000,
-  "ip_whitelist": ["192.168.1.0/24"],
   "expires_at": "2025-01-01T00:00:00Z"
 }
 ```
@@ -510,7 +491,6 @@ Create a new API key.
       "read_addresses",
       "manage_webhooks"
     ],
-    "rate_limit": 1000,
     "created_at": "2024-01-15T10:30:00Z"
   }
 }
@@ -809,154 +789,6 @@ def verify_webhook(payload, signature, secret):
     )
 ```
 
-## SDKs and Libraries
-
-### JavaScript/TypeScript
-
-```bash
-npm install @trontracker/sdk
-```
-
-```javascript
-import { TronTracker } from '@trontracker/sdk';
-
-const client = new TronTracker({
-  apiKey: 'tk_live_1234567890abcdef...',
-  baseUrl: 'https://api.trontracker.com'
-});
-
-// Get transactions
-const transactions = await client.transactions.list({
-  status: 'success',
-  token: 'USDT',
-  limit: 50
-});
-
-// Multi-address query
-const multiAddressResults = await client.transactions.multiAddress({
-  addresses: [
-    'TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t',
-    'TLa2f6VPqDgRE67v1736s7bJ8Ray5wYjU7'
-  ],
-  limit: 100
-});
-
-// WebSocket connection
-const ws = client.websocket.connect();
-ws.subscribe({
-  events: ['transaction'],
-  filters: {
-    addresses: ['TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t'],
-    tokens: ['USDT']
-  }
-});
-
-ws.on('transaction', (transaction) => {
-  console.log('New transaction:', transaction);
-});
-```
-
-### Python
-
-```bash
-pip install trontracker-python
-```
-
-```python
-from trontracker import TronTracker
-
-client = TronTracker(
-    api_key='tk_live_1234567890abcdef...',
-    base_url='https://api.trontracker.com'
-)
-
-# Get transactions
-transactions = client.transactions.list(
-    status='success',
-    token='USDT',
-    limit=50
-)
-
-# Multi-address query
-results = client.transactions.multi_address(
-    addresses=[
-        'TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t',
-        'TLa2f6VPqDgRE67v1736s7bJ8Ray5wYjU7'
-    ],
-    limit=100
-)
-
-# WebSocket connection
-import asyncio
-
-async def handle_transaction(transaction):
-    print(f"New transaction: {transaction}")
-
-async def main():
-    ws = await client.websocket.connect()
-    await ws.subscribe(
-        events=['transaction'],
-        filters={
-            'addresses': ['TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t'],
-            'tokens': ['USDT']
-        }
-    )
-    
-    ws.on('transaction', handle_transaction)
-    await ws.listen()
-
-asyncio.run(main())
-```
-
-### Go
-
-```bash
-go get github.com/trontracker/go-sdk
-```
-
-```go
-package main
-
-import (
-    "context"
-    "fmt"
-    "github.com/trontracker/go-sdk"
-)
-
-func main() {
-    client := trontracker.NewClient(&trontracker.Config{
-        APIKey:  "tk_live_1234567890abcdef...",
-        BaseURL: "https://api.trontracker.com",
-    })
-
-    // Get transactions
-    transactions, err := client.Transactions.List(context.Background(), &trontracker.TransactionQuery{
-        Status: "success",
-        Token:  "USDT",
-        Limit:  50,
-    })
-    if err != nil {
-        panic(err)
-    }
-
-    fmt.Printf("Found %d transactions\n", len(transactions.Data))
-
-    // Multi-address query
-    results, err := client.Transactions.MultiAddress(context.Background(), &trontracker.MultiAddressQuery{
-        Addresses: []string{
-            "TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t",
-            "TLa2f6VPqDgRE67v1736s7bJ8Ray5wYjU7",
-        },
-        Limit: 100,
-    })
-    if err != nil {
-        panic(err)
-    }
-
-    fmt.Printf("Found %d transactions across addresses\n", len(results.Data))
-}
-```
-
 ## Error Codes
 
 | Code | Description |
@@ -965,7 +797,6 @@ func main() {
 | 401 | Unauthorized - Invalid or missing API key |
 | 403 | Forbidden - Insufficient permissions |
 | 404 | Not Found - Resource not found |
-| 429 | Too Many Requests - Rate limit exceeded |
 | 500 | Internal Server Error - Server error |
 | 503 | Service Unavailable - Temporary service issue |
 
@@ -977,4 +808,3 @@ For API support and questions:
 - **Support Email**: support@trontracker.com
 - **Status Page**: https://status.trontracker.com
 - **GitHub Issues**: https://github.com/trontracker/api-issues
-

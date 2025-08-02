@@ -61,3 +61,31 @@ jwt_secret = "your-secret-key-change-in-production"
 token_expiry = 86400  # 24 hours
 api_key_length = 32
 
+[tron]
+# Global API key for all Tron nodes (optional)
+api_key = ""
+# Default timeout for Tron API calls in seconds
+timeout = 30
+
+# Tron network nodes configuration
+[[tron.nodes]]
+name = "TronGrid"
+url = "https://api.trongrid.io"
+priority = 1
+timeout = 30
+api_key = ""  # Node-specific API key (optional)
+
+[[tron.nodes]]
+name = "TronStack"
+url = "https://api.tronstack.io"
+priority = 2
+timeout = 30
+api_key = ""
+
+[[tron.nodes]]
+name = "GetBlock"
+url = "https://go.getblock.io/tron"
+priority = 3
+timeout = 30
+api_key = ""
+

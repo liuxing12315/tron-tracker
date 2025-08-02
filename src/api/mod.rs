@@ -14,7 +14,7 @@ use tower_http::cors::CorsLayer;
 
 pub mod handlers;
 
-use handlers::{health, transaction, dashboard};
+use handlers::{health, transaction, dashboard, api_key};
 
 // Use AdminAppState as the unified state type
 pub use crate::api::handlers::admin::AdminAppState as AppState;
@@ -44,10 +44,16 @@ pub fn create_router(state: Arc<AppState>) -> Router {
         // .route("/api/v1/websockets/connections", get(websocket::list_connections))
         // .route("/api/v1/websockets/stats", get(websocket::get_stats))
         
-        // API Key management endpoints - 暂时注释掉缺失的模块
-        // .route("/api/v1/api-keys", get(api_key::list_api_keys))
-        // .route("/api/v1/api-keys", post(api_key::create_api_key))
-        // .route("/api/v1/api-keys/:id", delete(api_key::delete_api_key))
+        // API Key management endpoints
+        .route("/api/v1/api-keys", get(api_key::list_api_keys))
+        .route("/api/v1/api-keys", axum::routing::post(api_key::create_api_key))
+        .route("/api/v1/api-keys/:id", get(api_key::get_api_key))
+        .route("/api/v1/api-keys/:id", axum::routing::put(api_key::update_api_key))
+        .route("/api/v1/api-keys/:id", axum::routing::delete(api_key::delete_api_key))
+        .route("/api/v1/api-keys/:id/regenerate", axum::routing::post(api_key::regenerate_api_key))
+        .route("/api/v1/api-keys/:id/usage", get(api_key::get_api_key_usage))
+        .route("/api/v1/api-keys/test", axum::routing::post(api_key::test_api_key))
+        .route("/api/v1/api-keys/permissions", get(api_key::get_available_permissions))
         
         // System configuration endpoints - 暂时注释掉缺失的模块
         // .route("/api/v1/config", get(config::get_config))

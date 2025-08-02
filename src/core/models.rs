@@ -84,7 +84,7 @@ pub enum NotificationStatus {
 }
 
 /// Webhook filters for event filtering
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct WebhookFilters {
     pub addresses: Option<Vec<String>>,
     pub tokens: Option<Vec<String>>,
