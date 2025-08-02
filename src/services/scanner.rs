@@ -305,11 +305,11 @@ impl Scanner {
     fn is_large_transfer(&self, transaction: &Transaction) -> bool {
         // 解析金额
         if let Ok(amount) = transaction.value.parse::<f64>() {
-            // 根据代币类型设置不同的阈值
+            // 根据代币类型设置更高的阈值，避免过多的大额转账提醒
             let threshold = match transaction.token_symbol.as_ref().map(|s| s.as_str()).unwrap_or("TRX") {
-                "USDT" => 10000.0, // 10,000 USDT
-                "TRX" => 1000000.0, // 1,000,000 TRX
-                _ => 100000.0, // 默认阈值
+                "USDT" => 100000.0, // 100,000 USDT (提高10倍)
+                "TRX" => 10000000.0, // 10,000,000 TRX (提高10倍)
+                _ => 1000000.0, // 默认阈值 (提高10倍)
             };
             
             amount >= threshold
@@ -495,7 +495,7 @@ mod tests {
             transaction_index: 0,
             from_address: "from_addr".to_string(),
             to_address: "to_addr".to_string(),
-            value: "15000.0".to_string(),
+            value: "150000.0".to_string(),
             token_address: None,
             token_symbol: Some("USDT".to_string()),
             token_decimals: Some(6),
