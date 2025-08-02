@@ -1,233 +1,292 @@
-# TRX Tracker - Tron 区块链增强数据服务
+# TRX Tracker - 高性能Tron区块链数据服务
 
-专注于提供 Tron 节点原生不支持功能的高性能区块链数据服务系统，包括批量地址查询、实时充值通知等核心功能。
+专业的Tron区块链数据追踪和通知系统，提供批量地址查询、实时通知、完整管理界面等核心功能。
 
-## 🎯 核心价值
+## ✨ 核心功能
 
-TRX Tracker 填补了 Tron 节点功能空白，为开发者提供：
+### 🎯 批量地址查询
+- **多地址交易查询** - 一次查询最多100个地址
+- **智能筛选** - 按时间、金额、代币类型过滤
+- **高性能缓存** - Redis多层缓存，毫秒级响应
 
-### 核心功能
+### 📡 实时通知系统
+- **WebSocket推送** - 实时交易事件推送
+- **Webhook回调** - HTTP回调通知，支持HMAC签名
+- **灵活过滤** - 自定义触发条件和过滤器
 
-1. **批量地址交易查询** - Tron 节点无法直接提供
-   - 一次查询最多100个地址的交易记录
-   - 支持多维度筛选（时间、金额、代币类型）
-   - Redis 缓存优化，毫秒级响应
+### 🎛️ 管理后台
+- **系统监控** - 实时状态、性能指标、统计数据
+- **交易管理** - 查询、搜索、导出功能
+- **配置管理** - API密钥、Webhook、系统配置
+- **日志管理** - 查看、过滤、导出系统日志
 
-2. **实时充值通知** - 监控特定地址的充值事件
-   - WebSocket 实时推送
-   - Webhook HTTP 回调
-   - 支持 HMAC 签名验证
+### ⚡ 技术特点
+- **Rust驱动** - 高性能异步处理
+- **模块化架构** - 易于扩展和维护
+- **生产就绪** - 完整的监控、日志、错误处理
+- **RESTful API** - 标准化接口设计
 
-3. **Web 管理界面** - 完整的系统管理
-   - 实时监控面板
-   - 交易查询和分析
-   - Webhook/WebSocket 管理
-   - API 密钥管理
+## 🚀 快速启动
 
-### 技术特点
+### 环境要求
+- **Rust** 1.70+
+- **PostgreSQL** 13+
+- **Redis** 6+
+- **Node.js** 18+ (管理界面)
 
-- **高性能**: Rust 实现，异步处理
-- **低延迟**: 缓存优化，快速响应
-- **可扩展**: 模块化架构，易于扩展
-- **生产就绪**: 包含监控、日志、错误处理
-
-## 🚀 快速开始
-
-详细启动指南请查看 [QUICK_START.md](QUICK_START.md)
-
-### 最简启动
+### 一键启动
 
 ```bash
-# 1. 安装依赖
-brew install postgresql redis  # macOS
-cargo build
+# 1. 克隆项目
+git clone https://github.com/your-repo/tron-tracker.git
+cd tron-tracker
 
-# 2. 初始化数据库
+# 2. 安装依赖
+brew install postgresql redis  # macOS
+# 或者: apt install postgresql redis-server  # Ubuntu
+
+# 3. 初始化数据库
 createdb trontracker
 psql -d trontracker -f migrations/001_initial.sql
 
-# 3. 启动服务
+# 4. 启动后端服务
 cargo run
 
-# 4. 访问管理界面
-cd admin-ui && pnpm install && pnpm dev
-# 访问 http://localhost:5173
+# 5. 启动管理界面（新终端）
+cd admin-ui && npm install && npm run dev
 ```
 
-### 测试核心功能
+### 验证安装
 
 ```bash
-# 批量查询地址交易
+# 健康检查
+curl http://localhost:8080/health
+
+# 测试批量查询
 curl -X POST http://localhost:8080/api/v1/transactions/multi-address \
   -H "Content-Type: application/json" \
-  -d '{"addresses": "TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t,TLa2f6VPqDgRE67v1736s7bJ8Ray5wYjU7"}'
+  -d '{"addresses": ["TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t"]}'
+
+# 访问管理界面
+open http://localhost:5173
 ```
 
-## 📊 系统架构
+## 🏗️ 系统架构
 
 ```
 ┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
-│   管理界面      │    │   REST API      │    │   WebSocket     │
-│   (React)       │    │   批量查询      │    │   实时推送      │
+│   管理后台      │    │   REST API      │    │   WebSocket     │
+│   React 19      │    │   批量查询      │    │   实时推送      │
 └─────────────────┘    └─────────────────┘    └─────────────────┘
          │                       │                       │
          └───────────────────────┼───────────────────────┘
                                  │
                     ┌─────────────────┐
-                    │   核心引擎      │
-                    │   (Rust)        │
+                    │   TRX Tracker   │
+                    │   Rust Core     │
                     └─────────────────┘
                              │
          ┌───────────────────┼───────────────────┐
          │                   │                   │
 ┌─────────────────┐ ┌─────────────────┐ ┌─────────────────┐
-│   区块扫描      │ │   数据存储      │ │   Webhook       │
-│   监控充值      │ │   PostgreSQL    │ │   HTTP 回调     │
+│   区块扫描器    │ │   数据存储      │ │   通知系统      │
+│   Transaction   │ │   PostgreSQL    │ │   Webhook &     │
+│   Scanner       │ │   + Redis       │ │   WebSocket     │
 └─────────────────┘ └─────────────────┘ └─────────────────┘
 ```
 
-## 🔧 Configuration
+## ⚙️ 配置说明
 
-The system uses a single configuration file with sensible defaults. All settings can be overridden via environment variables.
-
-### Basic Configuration
+### 默认配置文件 `config/default.toml`
 
 ```toml
 [server]
 host = "0.0.0.0"
 port = 8080
-admin_port = 3000
-
-[blockchain]
-start_block = 62800000
-batch_size = 100
-scan_interval = 3
 
 [database]
-url = "postgresql://user:pass@localhost/trontracker"
+host = "localhost"
+port = 5432
+database = "trontracker"
+username = "postgres"
 max_connections = 20
 
-[redis]
-url = "redis://localhost:6379"
+[cache]
+enabled = true
+redis_url = "redis://localhost:6379"
+default_ttl_seconds = 3600
+
+[scanner]
+enabled = true
+scan_interval_ms = 5000
+batch_size = 10
+start_block = 62800000
 
 [tron]
 nodes = [
-    { url = "https://api.trongrid.io", priority = 1 },
-    { url = "https://go.getblock.io", priority = 2 }
+    { name = "TronGrid", url = "https://api.trongrid.io", priority = 1 },
+    { name = "GetBlock", url = "https://go.getblock.io", priority = 2 }
 ]
 ```
 
-## 📡 API 使用示例
-
-完整 API 文档请查看 [API_DOCUMENTATION.md](API_DOCUMENTATION.md)
-
-### 批量地址查询（核心功能）
+### 环境变量覆盖
 
 ```bash
-# 查询多个地址的 USDT 交易
+export DATABASE_URL="postgresql://user:pass@localhost/trontracker"
+export REDIS_URL="redis://localhost:6379"
+export RUST_LOG="info"
+```
+
+## 📡 API接口示例
+
+### 核心功能 - 批量地址查询
+
+```bash
+# 查询多个地址的所有交易
 curl -X POST http://localhost:8080/api/v1/transactions/multi-address \
   -H "Content-Type: application/json" \
   -d '{
-    "addresses": "TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t,TLa2f6VPqDgRE67v1736s7bJ8Ray5wYjU7",
-    "token": "USDT",
-    "limit": 50
+    "addresses": ["TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t", "TLa2f6VPqDgRE67v1736s7bJ8Ray5wYjU7"],
+    "limit": 100,
+    "token": "USDT"
   }'
+```
+
+### 单地址查询
+
+```bash
+# 查询单个地址交易记录
+curl "http://localhost:8080/api/v1/addresses/TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t/transactions?limit=50&token=USDT"
 ```
 
 ### WebSocket 实时监控
 
 ```javascript
-const ws = new WebSocket('ws://localhost:8080/ws');
+const ws = new WebSocket('ws://localhost:8081');
 
 ws.onopen = () => {
-  // 订阅地址的充值通知
+  // 订阅交易通知
   ws.send(JSON.stringify({
     type: 'subscribe',
     subscription: {
       event_types: ['transaction'],
       addresses: ['YOUR_WALLET_ADDRESS'],
-      tokens: ['USDT']
+      tokens: ['USDT', 'TRX']
     }
   }));
 };
 
 ws.onmessage = (event) => {
   const data = JSON.parse(event.data);
-  if (data.type === 'TransactionNotification') {
-    console.log('收到充值:', data.transaction);
-  }
+  console.log('实时交易:', data);
 };
 ```
 
-### Webhook 配置
+### Webhook 通知配置
 
 ```bash
-# 创建 Webhook 接收充值通知
+# 创建Webhook
 curl -X POST http://localhost:8080/api/v1/webhooks \
   -H "Content-Type: application/json" \
   -d '{
-    "name": "充值通知",
+    "name": "充值监控",
     "url": "https://your-server.com/webhook",
-    "secret": "your_secret",
+    "secret": "your_webhook_secret",
     "events": ["transaction"],
     "filters": {
       "addresses": ["YOUR_WALLET_ADDRESS"],
       "min_amount": "100"
-    }
+    },
+    "enabled": true
   }'
 ```
 
-## 🎛️ 管理界面
+## 🎛️ 管理后台
 
-基于 React + TailwindCSS 的现代化管理界面：
+现代化的React管理界面，提供完整的系统管理功能：
 
-### 功能模块
-- **监控面板**: 实时系统状态、交易统计、性能指标
-- **交易管理**: 批量查询、交易搜索、导出功能
-- **通知配置**: Webhook 管理、WebSocket 连接监控
-- **系统设置**: API 密钥、扫描参数、节点配置
+### 核心模块
+
+#### 📊 监控面板
+- 实时系统状态和性能指标
+- 交易统计和趋势图表
+- 错误监控和告警信息
+
+#### 💰 交易管理
+- 批量地址查询工具
+- 交易记录搜索和过滤
+- 数据导出功能
+
+#### 🔔 通知管理
+- Webhook配置和测试
+- WebSocket连接监控
+- 通知历史记录
+
+#### ⚙️ 系统配置
+- API密钥管理
+- 扫描器参数设置
+- 节点配置和健康检查
+
+#### 📋 日志管理
+- 系统日志查看和过滤
+- 日志级别设置
+- 日志导出和清理
 
 ### 访问地址
-```
-开发环境: http://localhost:5173
-生产环境: http://localhost:3000
-```
+- **开发环境**: http://localhost:5173
+- **生产环境**: http://localhost:3000
 
-## 🔐 Security
+## 🔐 安全特性
 
-### API Authentication
-All API endpoints require authentication using API keys:
+### API认证
+- **Bearer Token**: 使用API密钥进行身份验证
+- **权限控制**: 基于角色的访问控制
+- **速率限制**: 防止API滥用
 
-- **API Keys**: Bearer token authentication
+### Webhook安全
+- **HMAC签名**: SHA-256签名验证
+- **重试机制**: 指数退避重试策略
+- **HTTPS强制**: 生产环境仅支持HTTPS
 
-### Webhook Security
-- **Signature Verification**: HMAC-SHA256 request signing
-- **SSL/TLS**: HTTPS-only webhook delivery
-- **Retry Logic**: Exponential backoff for failed deliveries
+## ⚡ 性能优化
 
-## 🔧 优化特性
+- **数据库连接池**: 高效的连接复用
+- **多层缓存**: Redis + 内存缓存
+- **批量处理**: 优化的区块扫描
+- **异步架构**: 全异步非阻塞I/O
 
-- **连接池**: 数据库连接复用
-- **Redis 缓存**: 多层缓存架构
-- **批量处理**: 100块/批扫描
-- **异步架构**: 全异步非阻塞
+## 🚀 部署指南
 
-## 🚀 Deployment
-
-### Docker Deployment
+### Docker部署（推荐）
 
 ```bash
-# Build and start all services
+# 一键启动所有服务
 docker-compose up -d
 
-# View logs
+# 查看运行状态
+docker-compose ps
+
+# 查看实时日志
 docker-compose logs -f
 
-# Scale WebSocket service
-docker-compose up -d --scale websocket=3
+# 停止服务
+docker-compose down
 ```
 
-### Production Configuration
+### 手动部署
+
+```bash
+# 编译生产版本
+cargo build --release
+
+# 准备配置文件
+cp config/default.toml config/production.toml
+
+# 启动服务
+./target/release/tron-tracker --config config/production.toml
+```
+
+### 生产环境配置示例
 
 ```toml
 [server]
@@ -235,69 +294,78 @@ host = "0.0.0.0"
 port = 8080
 
 [database]
-url = "postgresql://user:pass@db.example.com/trontracker"
+host = "db.example.com"
+port = 5432
+database = "trontracker"
+username = "prod_user"
 max_connections = 50
 
-[redis]
-url = "redis://cache.example.com:6379"
+[cache]
+redis_url = "redis://cache.example.com:6379"
 
 [logging]
 level = "info"
-format = "json"
 ```
 
-## 🔧 Development
+## 🛠️ 开发指南
 
-### Building from Source
+### 从源码构建
 
 ```bash
-# Install dependencies
-cargo build --release
+# 安装Rust工具链
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 
-# Run tests
+# 克隆项目
+git clone https://github.com/your-repo/tron-tracker.git
+cd tron-tracker
+
+# 构建项目
+cargo build
+
+# 运行测试
 cargo test
 
-# Run with development config
-cargo run -- --config config/development.toml
+# 启动开发服务器
+cargo run
 ```
 
-### Contributing
+### 代码规范
 
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Add tests
-5. Submit a pull request
+```bash
+# 格式化代码
+cargo fmt
 
-## 📚 项目文档
+# 代码检查
+cargo clippy
 
-- [PROJECT_OVERVIEW.md](PROJECT_OVERVIEW.md) - 项目概览和功能说明
-- [QUICK_START.md](QUICK_START.md) - 快速启动指南
-- [API_DOCUMENTATION.md](API_DOCUMENTATION.md) - 完整 API 文档
-- [UNIFIED_ARCHITECTURE.md](docs/UNIFIED_ARCHITECTURE.md) - 架构设计文档
+# 运行所有测试
+cargo test --all
+```
 
-## 🆘 Support
+## 📚 技术栈
 
-### Getting Help
-- **Documentation**: Check the docs/ directory for detailed guides
-- **Issues**: Report bugs and request features on GitHub
-- **Discussions**: Join community discussions for questions and ideas
+### 后端技术
+- **Rust** - 核心语言，高性能系统编程
+- **Axum** - 现代化Web框架
+- **SQLx** - 异步数据库驱动
+- **Tokio** - 异步运行时
+- **Redis** - 缓存和会话存储
 
-### System Requirements
-- **Minimum**: 2 CPU cores, 4GB RAM, 100GB storage
-- **Recommended**: 4+ CPU cores, 8GB+ RAM, SSD storage
-- **Network**: Stable internet connection for blockchain access
+### 前端技术
+- **React 19** - 用户界面框架
+- **Vite** - 构建工具
+- **TailwindCSS** - 样式框架
+- **shadcn/ui** - 组件库
 
-## 📄 License
+### 基础设施
+- **PostgreSQL** - 主数据库
+- **Docker** - 容器化部署
+- **WebSocket** - 实时通信
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+## 📄 许可证
 
-## 🙏 Acknowledgments
-
-- Tron Foundation for blockchain infrastructure
-- Rust community for excellent tooling and libraries
-- Contributors and users for feedback and improvements
+本项目采用 MIT 许可证 - 详情请查看 [LICENSE](LICENSE) 文件
 
 ---
 
-**TRX Tracker** - 专注于 Tron 节点功能增强的区块链数据服务
+**TRX Tracker** - 专业的Tron区块链数据追踪服务

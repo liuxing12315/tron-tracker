@@ -1,14 +1,22 @@
 # TRX Tracker API 文档
 
-## 概述
+专业的Tron区块链数据API服务，提供批量查询、实时通知等核心功能。
 
-TRX Tracker 提供 RESTful API 和 WebSocket 接口，支持批量查询交易、实时通知等 Tron 节点不提供的功能。
+## 📋 API概览
 
 ### 基础信息
 - **Base URL**: `http://localhost:8080`
-- **WebSocket URL**: `ws://localhost:8080/ws`
+- **WebSocket URL**: `ws://localhost:8081`
 - **认证方式**: API Key (Bearer Token)
 - **响应格式**: JSON
+- **版本**: v1
+
+### 认证方式
+```bash
+# 在请求头中添加API密钥
+curl -H "Authorization: Bearer YOUR_API_KEY" \
+     "http://localhost:8080/api/v1/transactions"
+```
 
 ### 通用响应格式
 ```json
@@ -25,27 +33,26 @@ TRX Tracker 提供 RESTful API 和 WebSocket 接口，支持批量查询交易�
 }
 ```
 
-## 核心功能 API
+## 🎯 核心API接口
 
-### 1. 批量地址交易查询
+### 1. 批量地址查询 (核心功能)
+
+批量查询多个地址的交易记录，支持最多100个地址同时查询。
 
 **端点**: `POST /api/v1/transactions/multi-address`
-
-**描述**: 批量查询多个地址的交易记录，最多支持100个地址同时查询。
 
 **请求体**:
 ```json
 {
-  "addresses": "address1,address2,address3",  // 逗号分隔的地址列表
+  "addresses": ["TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t", "TLa2f6VPqDgRE67v1736s7bJ8Ray5wYjU7"],
+  "limit": 100,
   "page": 1,
-  "limit": 50,
-  "token": "USDT",                            // 可选：筛选特定代币
-  "status": "success",                        // 可选：success/failed/pending
-  "min_amount": "100",                        // 可选：最小金额
-  "max_amount": "10000",                      // 可选：最大金额
-  "start_time": 1704067200,                   // 可选：开始时间戳
-  "end_time": 1704153600,                     // 可选：结束时间戳
-  "group_by_address": false                   // 可选：是否按地址分组
+  "token": "USDT",
+  "status": "success",
+  "min_amount": "100",
+  "max_amount": "10000",
+  "start_time": 1704067200,
+  "end_time": 1704153600
 }
 ```
 
@@ -56,274 +63,330 @@ TRX Tracker 提供 RESTful API 和 WebSocket 接口，支持批量查询交易�
   "data": {
     "transactions": [
       {
-        "id": "550e8400-e29b-41d4-a716-446655440000",
-        "hash": "0x1a2b3c...",
+        "hash": "0x...",
         "block_number": 62845149,
-        "from_address": "TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t",
-        "to_address": "TLa2f6VPqDgRE67v1736s7bJ8Ray5wYjU7",
-        "value": "1250.50",
+        "from_address": "TR7NHqjeK...",
+        "to_address": "TLa2f6VPq...",
+        "value": "1000000000",
         "token_symbol": "USDT",
-        "status": "success",
-        "timestamp": "2024-01-15T10:30:00Z"
+        "timestamp": "2024-01-15T10:30:15Z",
+        "status": "success"
       }
     ],
-    "address_stats": {
-      "TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t": {
-        "total_transactions": 156,
-        "total_sent": "50000.00",
-        "total_received": "45000.00"
+    "summary": {
+      "total_transactions": 1250,
+      "total_addresses": 2,
+      "date_range": {
+        "start": "2024-01-01T00:00:00Z",
+        "end": "2024-01-15T23:59:59Z"
       }
-    },
-    "query_time_ms": 125,
-    "cache_hit": false
+    }
   },
   "pagination": {
     "page": 1,
-    "limit": 50,
-    "total": 234,
-    "total_pages": 5
+    "limit": 100,
+    "total": 1250,
+    "total_pages": 13
   }
 }
 ```
 
-### 2. 单地址交易查询
+### 2. 单地址查询
 
-**端点**: `GET /api/v1/addresses/:address/transactions`
+**端点**: `GET /api/v1/addresses/{address}/transactions`
 
 **查询参数**:
-- `page`: 页码（默认：1）
-- `limit`: 每页数量（默认：20，最大：100）
-- `token`: 代币类型筛选
-- `status`: 交易状态筛选
+- `limit`: 返回条数 (默认50)
+- `page`: 页码 (默认1)
+- `token`: 代币筛选
+- `type`: 交易类型 (in/out/all)
 
-### 3. 获取交易详情
+**请求示例**:
+```bash
+curl "http://localhost:8080/api/v1/addresses/TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t/transactions?limit=50&token=USDT"
+```
 
-**端点**: `GET /api/v1/transactions/:hash`
+### 3. 交易详情查询
+
+**端点**: `GET /api/v1/transactions/{hash}`
 
 **响应示例**:
 ```json
 {
   "success": true,
   "data": {
-    "id": "550e8400-e29b-41d4-a716-446655440000",
-    "hash": "0x1a2b3c...",
+    "hash": "0x...",
     "block_number": 62845149,
-    "block_hash": "0xdef456...",
-    "from_address": "TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t",
-    "to_address": "TLa2f6VPqDgRE67v1736s7bJ8Ray5wYjU7",
-    "value": "1250.50",
+    "block_hash": "0x...",
+    "from_address": "TR7NHqjeK...",
+    "to_address": "TLa2f6VPq...",
+    "value": "1000000000",
     "token_address": "TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t",
     "token_symbol": "USDT",
     "token_decimals": 6,
-    "gas_used": 14500,
-    "gas_price": "420",
+    "gas_used": 65000,
+    "gas_price": 420,
     "status": "success",
-    "timestamp": "2024-01-15T10:30:00Z"
+    "timestamp": "2024-01-15T10:30:15Z",
+    "confirmations": 1000
   }
 }
 ```
 
-## WebSocket API
+## 🔔 Webhook管理
 
-### 连接建立
-
-**URL**: `ws://localhost:8080/ws`
-
-**连接成功响应**:
-```json
-{
-  "type": "Connected",
-  "connection_id": "conn_123456",
-  "server_time": 1704153600
-}
-```
-
-### 订阅交易事件
-
-**订阅请求**:
-```json
-{
-  "type": "subscribe",
-  "subscription": {
-    "event_types": ["transaction", "large_transfer"],
-    "addresses": ["TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t"],
-    "tokens": ["USDT", "TRX"],
-    "min_amount": "1000"
-  }
-}
-```
-
-**交易通知**:
-```json
-{
-  "type": "TransactionNotification",
-  "transaction": {
-    "hash": "0x1a2b3c...",
-    "from_address": "TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t",
-    "to_address": "TLa2f6VPqDgRE67v1736s7bJ8Ray5wYjU7",
-    "value": "5000.00",
-    "token_symbol": "USDT",
-    "timestamp": "2024-01-15T10:30:00Z"
-  },
-  "event_type": "transaction",
-  "subscription_id": "sub_789"
-}
-```
-
-### 心跳保持
-
-**Ping**:
-```json
-{
-  "type": "ping",
-  "timestamp": 1704153600
-}
-```
-
-**Pong**:
-```json
-{
-  "type": "pong",
-  "timestamp": 1704153600
-}
-```
-
-## Webhook 管理 API
-
-### 1. 创建 Webhook
+### 创建Webhook
 
 **端点**: `POST /api/v1/webhooks`
 
 **请求体**:
 ```json
 {
-  "name": "Payment Notifications",
+  "name": "充值监控",
   "url": "https://your-server.com/webhook",
-  "secret": "webhook_secret_key",
+  "secret": "your_webhook_secret",
   "events": ["transaction", "large_transfer"],
   "filters": {
-    "addresses": ["TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t"],
-    "tokens": ["USDT"],
-    "min_amount": "1000"
-  }
+    "addresses": ["YOUR_WALLET_ADDRESS"],
+    "min_amount": "100",
+    "tokens": ["USDT", "TRX"]
+  },
+  "enabled": true
 }
 ```
 
-### 2. Webhook 通知格式
+### 获取Webhook列表
 
-**Headers**:
-```
-X-Webhook-Signature: sha256=abcdef123456...
-X-Webhook-Timestamp: 1704153600
-X-Webhook-Event: transaction
-```
+**端点**: `GET /api/v1/webhooks`
 
-**Body**:
+### 测试Webhook
+
+**端点**: `POST /api/v1/webhooks/{webhook_id}/test`
+
+### Webhook通知格式
+
+当触发条件满足时，系统会向您的URL发送POST请求：
+
 ```json
 {
-  "event": "transaction",
-  "timestamp": 1704153600,
+  "event_type": "transaction",
+  "timestamp": "2024-01-15T10:30:15Z",
   "data": {
     "transaction": {
-      "hash": "0x1a2b3c...",
-      "from_address": "TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t",
-      "to_address": "TLa2f6VPqDgRE67v1736s7bJ8Ray5wYjU7",
-      "value": "5000.00",
+      "hash": "0x...",
+      "from_address": "TR7NHqjeK...",
+      "to_address": "TLa2f6VPq...",
+      "value": "1000000000",
       "token_symbol": "USDT"
     }
-  }
+  },
+  "webhook_id": "uuid-here"
 }
 ```
 
-**签名验证** (Node.js):
+## 🔌 WebSocket实时推送
+
+### 连接WebSocket
+
 ```javascript
-const crypto = require('crypto');
+const ws = new WebSocket('ws://localhost:8081');
 
-function verifyWebhookSignature(payload, signature, secret) {
-  const hash = crypto
-    .createHmac('sha256', secret)
-    .update(payload)
-    .digest('hex');
+ws.onopen = () => {
+  console.log('WebSocket连接已建立');
+};
+```
+
+### 订阅交易通知
+
+```javascript
+ws.send(JSON.stringify({
+  type: 'subscribe',
+  subscription: {
+    id: 'my-subscription-1',
+    event_types: ['transaction'],
+    addresses: ['YOUR_WALLET_ADDRESS'],
+    tokens: ['USDT', 'TRX'],
+    min_amount: '100'
+  }
+}));
+```
+
+### 接收通知
+
+```javascript
+ws.onmessage = (event) => {
+  const data = JSON.parse(event.data);
   
-  return `sha256=${hash}` === signature;
+  if (data.type === 'transaction_notification') {
+    console.log('收到新交易:', data.transaction);
+  }
+};
+```
+
+### 取消订阅
+
+```javascript
+ws.send(JSON.stringify({
+  type: 'unsubscribe',
+  subscription_id: 'my-subscription-1'
+}));
+```
+
+## 🔑 API密钥管理
+
+### 创建API密钥
+
+**端点**: `POST /api/v1/api-keys`
+
+**请求体**:
+```json
+{
+  "name": "我的应用密钥",
+  "permissions": ["read_transactions", "manage_webhooks"],
+  "rate_limit": 1000,
+  "expires_in_days": 365
 }
 ```
 
-## 管理 API
+### 获取密钥列表
 
-### 1. 系统统计
+**端点**: `GET /api/v1/api-keys`
 
-**端点**: `GET /api/v1/dashboard/stats`
+### 密钥使用统计
 
-**响应**:
+**端点**: `GET /api/v1/api-keys/{key_id}/usage`
+
+## 🎛️ 管理接口
+
+### 系统健康检查
+
+**端点**: `GET /health`
+
+**响应示例**:
 ```json
 {
-  "success": true,
-  "data": {
-    "total_transactions": 1247856,
-    "total_addresses": 89234,
-    "current_block": 62845149,
-    "scan_speed": 18.5,
-    "active_webhooks": 12,
-    "websocket_connections": 156,
-    "api_requests_today": 45678,
-    "success_rate": 99.2,
-    "uptime": 2847600
+  "status": "healthy",
+  "timestamp": "2024-01-15T10:30:15Z",
+  "version": "2.0.0",
+  "components": {
+    "database": "healthy",
+    "cache": "healthy",
+    "scanner": "healthy"
   }
 }
 ```
 
-### 2. WebSocket 连接管理
+### 获取系统统计
 
-**端点**: `GET /api/v1/websockets/connections`
+**端点**: `GET /admin/dashboard/stats`
 
-**响应**:
-```json
-{
-  "success": true,
-  "data": {
-    "connections": [
-      {
-        "id": "conn_123",
-        "client_ip": "192.168.1.100",
-        "connected_at": "2024-01-15T10:30:00Z",
-        "subscriptions": ["sub_789"],
-        "message_count": 156
-      }
-    ]
-  }
-}
-```
+### 日志管理
 
-## 错误处理
+- `GET /admin/logs` - 获取系统日志
+- `DELETE /admin/logs` - 清空日志
+- `GET /admin/logs/export` - 导出日志
+
+### 扫描器控制
+
+- `POST /admin/scanner/restart` - 重启扫描器
+- `POST /admin/scanner/stop` - 停止扫描器
+- `POST /admin/scanner/scan/{block_number}` - 手动扫描指定区块
+
+## 📊 响应状态码
+
+| 状态码 | 说明 |
+|--------|------|
+| 200 | 请求成功 |
+| 201 | 创建成功 |
+| 400 | 请求参数错误 |
+| 401 | 未授权 |
+| 403 | 权限不足 |
+| 404 | 资源不存在 |
+| 429 | 请求过于频繁 |
+| 500 | 服务器内部错误 |
+
+## 🚨 错误处理
 
 ### 错误响应格式
+
 ```json
 {
   "success": false,
-  "data": null,
-  "error": "Error message description"
+  "error": {
+    "code": "INVALID_ADDRESS",
+    "message": "Invalid address format",
+    "details": "Address must be a valid Tron address starting with T"
+  },
+  "data": null
 }
 ```
 
 ### 常见错误码
-- `400 Bad Request`: 请求参数错误
-- `401 Unauthorized`: 未授权访问
-- `404 Not Found`: 资源不存在
-- `500 Internal Server Error`: 服务器内部错误
 
-## 认证
+| 错误码 | 说明 |
+|--------|------|
+| `INVALID_ADDRESS` | 地址格式错误 |
+| `ADDRESS_LIMIT_EXCEEDED` | 地址数量超限 |
+| `INVALID_TOKEN` | 无效的代币类型 |
+| `RATE_LIMIT_EXCEEDED` | 请求频率超限 |
+| `INSUFFICIENT_PERMISSIONS` | 权限不足 |
 
-### API Key 认证
+## 📝 使用限制
 
-**Header**:
+### 速率限制
+- **默认限制**: 1000 请求/小时
+- **批量查询**: 最多100个地址
+- **WebSocket连接**: 每个IP最多10个连接
+
+### 数据限制
+- **历史数据**: 支持查询最近6个月的数据
+- **实时数据**: 延迟通常在1-3秒
+- **分页限制**: 单次查询最多返回1000条记录
+
+## 🔧 SDK和示例
+
+### JavaScript/Node.js示例
+
+```javascript
+const TronTracker = require('tron-tracker-sdk');
+
+const client = new TronTracker({
+  apiKey: 'YOUR_API_KEY',
+  baseUrl: 'http://localhost:8080'
+});
+
+// 批量查询
+const transactions = await client.transactions.multiAddress({
+  addresses: ['TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t'],
+  token: 'USDT',
+  limit: 100
+});
+
+console.log(transactions);
 ```
-Authorization: Bearer your_api_key_here
+
+### Python示例
+
+```python
+import requests
+
+def query_transactions(addresses, token='USDT'):
+    response = requests.post(
+        'http://localhost:8080/api/v1/transactions/multi-address',
+        headers={'Authorization': 'Bearer YOUR_API_KEY'},
+        json={
+            'addresses': addresses,
+            'token': token,
+            'limit': 100
+        }
+    )
+    return response.json()
+
+# 使用示例
+result = query_transactions(['TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t'])
+print(result)
 ```
 
-### 获取 API Key
-通过管理界面创建和管理 API Key：
-1. 访问 http://localhost:3000/api-keys
-2. 点击 "Create API Key"
-3. 设置权限
-4. 保存生成的 Key（只显示一次）
+---
+
+**TRX Tracker API** - 专业的Tron区块链数据接口服务

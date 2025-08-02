@@ -666,18 +666,6 @@ impl Database {
         Ok(())
     }
 
-    /// 获取 Webhook 投递日志
-    pub async fn get_webhook_delivery_logs(&self, webhook_id: &str, page: u32, limit: u32) -> Result<Vec<crate::api::handlers::webhook::WebhookDeliveryLog>> {
-        debug!("Getting webhook delivery logs for: {} page: {} limit: {}", webhook_id, page, limit);
-        
-        let uuid = Uuid::parse_str(webhook_id)
-            .map_err(|e| anyhow::anyhow!("Invalid UUID: {}", e))?;
-        
-        // 由于投递日志表可能不存在，我们返回空列表
-        // TODO: 如果需要实现投递日志功能，需要创建相应的表结构
-        let _ = uuid; // 避免未使用警告
-        Ok(Vec::new())
-    }
 
     /// 更新 Webhook 统计
     pub async fn update_webhook_stats(&self, webhook_id: &str, success: bool) -> Result<()> {
@@ -1158,27 +1146,382 @@ impl Database {
     /// 获取日志
     pub async fn get_logs(
         &self,
-        _params: &crate::api::handlers::admin::LogQueryParams,
-        _page: u32,
-        _limit: u32,
+        params: &crate::api::handlers::admin::LogQueryParams,
+        page: u32,
+        limit: u32,
     ) -> Result<(Vec<crate::api::handlers::admin::LogEntry>, u64)> {
-        debug!("Getting logs");
-        // TODO: 实现日志查询
-        Ok((Vec::new(), 0))
+        debug!("Getting logs, page: {}, limit: {}", page, limit);
+        
+        let offset = (page - 1) * limit;
+        let mut where_conditions = Vec::new();
+        let mut param_count = 0;
+
+        // 构建WHERE条件
+        let mut query = r#"
+            SELECT id, timestamp, level, module, message, details, trace_id
+            FROM system_logs
+        "#.to_string();
+
+        if let Some(ref level) = params.level {
+            param_count += 1;
+            where_conditions.push(format!("level = ${}", param_count));
+        }
+
+        if let Some(ref module) = params.module {
+            param_count += 1;
+            where_conditions.push(format!("module ILIKE ${}", param_count));
+        }
+
+        if let Some(start_time) = params.start_time {
+            param_count += 1;
+            where_conditions.push(format!("timestamp >= ${}", param_count));
+        }
+
+        if let Some(end_time) = params.end_time {
+            param_count += 1;
+            where_conditions.push(format!("timestamp <= ${}", param_count));
+        }
+
+        if let Some(ref search) = params.search {
+            param_count += 1;
+            where_conditions.push(format!("(message ILIKE ${} OR module ILIKE ${})", param_count, param_count));
+        }
+
+        if !where_conditions.is_empty() {
+            query.push_str(&format!(" WHERE {}", where_conditions.join(" AND ")));
+        }
+
+        query.push_str(" ORDER BY timestamp DESC");
+        
+        // 分页
+        param_count += 1;
+        query.push_str(&format!(" LIMIT ${}", param_count));
+        param_count += 1;
+        query.push_str(&format!(" OFFSET ${}", param_count));
+
+        // 构建查询
+        let mut sqlx_query = sqlx::query(&query);
+        
+        // 绑定参数
+        if let Some(ref level) = params.level {
+            sqlx_query = sqlx_query.bind(level);
+        }
+        if let Some(ref module) = params.module {
+            sqlx_query = sqlx_query.bind(format!("%{}%", module));
+        }
+        if let Some(start_time) = params.start_time {
+            let start_dt = chrono::DateTime::from_timestamp(start_time, 0)
+                .unwrap_or_else(chrono::Utc::now);
+            sqlx_query = sqlx_query.bind(start_dt);
+        }
+        if let Some(end_time) = params.end_time {
+            let end_dt = chrono::DateTime::from_timestamp(end_time, 0)
+                .unwrap_or_else(chrono::Utc::now);
+            sqlx_query = sqlx_query.bind(end_dt);
+        }
+        if let Some(ref search) = params.search {
+            sqlx_query = sqlx_query.bind(format!("%{}%", search));
+        }
+        
+        sqlx_query = sqlx_query.bind(limit as i64).bind(offset as i64);
+
+        let rows = sqlx_query
+            .fetch_all(&self.pool)
+            .await
+            .map_err(|e| anyhow::anyhow!("Database error: {}", e))?;
+
+        // 获取总数
+        let mut count_query = "SELECT COUNT(*) as total FROM system_logs".to_string();
+        if !where_conditions.is_empty() {
+            // 重新构建WHERE条件（不包含LIMIT和OFFSET）
+            let count_conditions = where_conditions[..where_conditions.len().saturating_sub(2)].to_vec();
+            if !count_conditions.is_empty() {
+                count_query.push_str(&format!(" WHERE {}", count_conditions.join(" AND ")));
+            }
+        }
+
+        let mut count_sqlx_query = sqlx::query(&count_query);
+        
+        // 重新绑定参数（不包含limit和offset）
+        if let Some(ref level) = params.level {
+            count_sqlx_query = count_sqlx_query.bind(level);
+        }
+        if let Some(ref module) = params.module {
+            count_sqlx_query = count_sqlx_query.bind(format!("%{}%", module));
+        }
+        if let Some(start_time) = params.start_time {
+            let start_dt = chrono::DateTime::from_timestamp(start_time, 0)
+                .unwrap_or_else(chrono::Utc::now);
+            count_sqlx_query = count_sqlx_query.bind(start_dt);
+        }
+        if let Some(end_time) = params.end_time {
+            let end_dt = chrono::DateTime::from_timestamp(end_time, 0)
+                .unwrap_or_else(chrono::Utc::now);
+            count_sqlx_query = count_sqlx_query.bind(end_dt);
+        }
+        if let Some(ref search) = params.search {
+            count_sqlx_query = count_sqlx_query.bind(format!("%{}%", search));
+        }
+
+        let total_row = count_sqlx_query
+            .fetch_one(&self.pool)
+            .await
+            .map_err(|e| anyhow::anyhow!("Database error: {}", e))?;
+
+        use sqlx::Row;
+        let total_count: i64 = total_row.get("total");
+
+        // 构建结果
+        let mut logs = Vec::new();
+        for row in rows {
+            let log_entry = crate::api::handlers::admin::LogEntry {
+                id: row.get::<uuid::Uuid, _>("id").to_string(),
+                timestamp: row.get("timestamp"),
+                level: row.get("level"),
+                module: row.get("module"),
+                message: row.get("message"),
+                details: row.get("details"),
+                trace_id: row.get("trace_id"),
+            };
+            logs.push(log_entry);
+        }
+
+        Ok((logs, total_count as u64))
     }
 
     /// 清空日志
     pub async fn clear_logs(&self) -> Result<u64> {
         debug!("Clearing logs");
-        // TODO: 实现日志清空
-        Ok(0)
+        
+        // 清空系统日志表
+        let result = sqlx::query("DELETE FROM system_logs")
+            .execute(&self.pool)
+            .await
+            .map_err(|e| anyhow::anyhow!("Database error: {}", e))?;
+        
+        let deleted_count = result.rows_affected();
+        info!("Cleared {} log entries", deleted_count);
+        
+        Ok(deleted_count)
     }
 
     /// 导出日志
-    pub async fn export_logs(&self, _params: &crate::api::handlers::admin::LogQueryParams) -> Result<String> {
+    pub async fn export_logs(&self, params: &crate::api::handlers::admin::LogQueryParams) -> Result<String> {
         debug!("Exporting logs");
-        // TODO: 实现日志导出
-        Ok("timestamp,level,module,message\n".to_string())
+        
+        let mut where_conditions = Vec::new();
+        let mut param_count = 0;
+
+        // 构建WHERE条件
+        let mut query = r#"
+            SELECT timestamp, level, module, message, details, trace_id
+            FROM system_logs
+        "#.to_string();
+
+        if let Some(ref level) = params.level {
+            param_count += 1;
+            where_conditions.push(format!("level = ${}", param_count));
+        }
+
+        if let Some(ref module) = params.module {
+            param_count += 1;
+            where_conditions.push(format!("module ILIKE ${}", param_count));
+        }
+
+        if let Some(start_time) = params.start_time {
+            param_count += 1;
+            where_conditions.push(format!("timestamp >= ${}", param_count));
+        }
+
+        if let Some(end_time) = params.end_time {
+            param_count += 1;
+            where_conditions.push(format!("timestamp <= ${}", param_count));
+        }
+
+        if let Some(ref search) = params.search {
+            param_count += 1;
+            where_conditions.push(format!("(message ILIKE ${} OR module ILIKE ${})", param_count, param_count));
+        }
+
+        if !where_conditions.is_empty() {
+            query.push_str(&format!(" WHERE {}", where_conditions.join(" AND ")));
+        }
+
+        query.push_str(" ORDER BY timestamp DESC LIMIT 10000"); // 限制导出数量避免内存问题
+
+        // 构建查询
+        let mut sqlx_query = sqlx::query(&query);
+        
+        // 绑定参数
+        if let Some(ref level) = params.level {
+            sqlx_query = sqlx_query.bind(level);
+        }
+        if let Some(ref module) = params.module {
+            sqlx_query = sqlx_query.bind(format!("%{}%", module));
+        }
+        if let Some(start_time) = params.start_time {
+            let start_dt = chrono::DateTime::from_timestamp(start_time, 0)
+                .unwrap_or_else(chrono::Utc::now);
+            sqlx_query = sqlx_query.bind(start_dt);
+        }
+        if let Some(end_time) = params.end_time {
+            let end_dt = chrono::DateTime::from_timestamp(end_time, 0)
+                .unwrap_or_else(chrono::Utc::now);
+            sqlx_query = sqlx_query.bind(end_dt);
+        }
+        if let Some(ref search) = params.search {
+            sqlx_query = sqlx_query.bind(format!("%{}%", search));
+        }
+
+        let rows = sqlx_query
+            .fetch_all(&self.pool)
+            .await
+            .map_err(|e| anyhow::anyhow!("Database error: {}", e))?;
+
+        // 构建CSV内容
+        let mut csv_content = String::new();
+        csv_content.push_str("timestamp,level,module,message,details,trace_id\n");
+
+        use sqlx::Row;
+        let rows_len = rows.len();
+        for row in rows {
+            let timestamp: chrono::DateTime<chrono::Utc> = row.get("timestamp");
+            let level: String = row.get("level");
+            let module: String = row.get("module");
+            let message: String = row.get("message");
+            let details: Option<serde_json::Value> = row.get("details");
+            let trace_id: Option<String> = row.get("trace_id");
+
+            // 转义CSV字段
+            let escaped_message = message.replace("\"", "\"\"");
+            let details_str = details
+                .map(|v| v.to_string().replace("\"", "\"\""))
+                .unwrap_or_default();
+            let trace_id_str = trace_id.unwrap_or_default();
+
+            csv_content.push_str(&format!(
+                "\"{}\",\"{}\",\"{}\",\"{}\",\"{}\",\"{}\"\n",
+                timestamp.format("%Y-%m-%d %H:%M:%S UTC"),
+                level,
+                module,
+                escaped_message,
+                details_str,
+                trace_id_str
+            ));
+        }
+
+        info!("Exported {} log entries to CSV", rows_len);
+        Ok(csv_content)
+    }
+
+    /// 保存系统日志
+    pub async fn save_log(
+        &self,
+        level: &str,
+        module: &str,
+        message: &str,
+        details: Option<serde_json::Value>,
+        trace_id: Option<&str>,
+    ) -> Result<()> {
+        let query = r#"
+            INSERT INTO system_logs (level, module, message, details, trace_id)
+            VALUES ($1, $2, $3, $4, $5)
+        "#;
+
+        sqlx::query(query)
+            .bind(level)
+            .bind(module)
+            .bind(message)
+            .bind(details)
+            .bind(trace_id)
+            .execute(&self.pool)
+            .await
+            .map_err(|e| anyhow::anyhow!("Failed to save log: {}", e))?;
+
+        Ok(())
+    }
+
+    /// 获取 Webhook 投递日志
+    pub async fn get_webhook_delivery_logs(
+        &self,
+        webhook_id: &str,
+        page: u32,
+        limit: u32,
+    ) -> Result<Vec<crate::api::handlers::webhook::WebhookDeliveryLog>> {
+        debug!("Getting webhook delivery logs for webhook: {}", webhook_id);
+        
+        let offset = (page - 1) * limit;
+        
+        let query = r#"
+            SELECT id, webhook_id, event_type, payload, status_code,
+                   response_body, error, attempt, delivered_at
+            FROM webhook_delivery_logs
+            WHERE webhook_id = $1
+            ORDER BY delivered_at DESC
+            LIMIT $2 OFFSET $3
+        "#;
+
+        let webhook_uuid = uuid::Uuid::parse_str(webhook_id)
+            .map_err(|e| anyhow::anyhow!("Invalid webhook ID: {}", e))?;
+
+        let rows = sqlx::query(query)
+            .bind(webhook_uuid)
+            .bind(limit as i64)
+            .bind(offset as i64)
+            .fetch_all(&self.pool)
+            .await
+            .map_err(|e| anyhow::anyhow!("Database error: {}", e))?;
+
+        use sqlx::Row;
+        let mut logs = Vec::new();
+        for row in rows {
+            let log = crate::api::handlers::webhook::WebhookDeliveryLog {
+                id: row.get::<uuid::Uuid, _>("id").to_string(),
+                webhook_id: row.get::<uuid::Uuid, _>("webhook_id").to_string(),
+                event_type: row.get("event_type"),
+                payload: row.get("payload"),
+                status_code: row.get::<Option<i32>, _>("status_code").map(|v| v as u16),
+                response_body: row.get("response_body"),
+                error: row.get("error"),
+                attempt: row.get("attempt"),
+                delivered_at: row.get("delivered_at"),
+            };
+            logs.push(log);
+        }
+
+        Ok(logs)
+    }
+
+    /// 保存 Webhook 投递日志
+    pub async fn save_webhook_delivery_log(
+        &self,
+        webhook_id: uuid::Uuid,
+        event_type: &str,
+        payload: &serde_json::Value,
+        status_code: Option<u16>,
+        response_body: Option<&str>,
+        error: Option<&str>,
+        attempt: i32,
+    ) -> Result<()> {
+        let query = r#"
+            INSERT INTO webhook_delivery_logs 
+            (webhook_id, event_type, payload, status_code, response_body, error, attempt)
+            VALUES ($1, $2, $3, $4, $5, $6, $7)
+        "#;
+
+        sqlx::query(query)
+            .bind(webhook_id)
+            .bind(event_type)
+            .bind(payload)
+            .bind(status_code.map(|c| c as i32))
+            .bind(response_body)
+            .bind(error)
+            .bind(attempt)
+            .execute(&self.pool)
+            .await
+            .map_err(|e| anyhow::anyhow!("Failed to save webhook delivery log: {}", e))?;
+
+        Ok(())
     }
 }
 

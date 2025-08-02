@@ -46,7 +46,7 @@ export const logService = {
    * Clear logs based on criteria
    */
   async clearLogs(criteria = {}) {
-    const response = await apiClient.post('/admin/logs/clear', criteria);
+    const response = await apiClient.delete('/admin/logs', criteria);
     return response.data || response;
   },
 

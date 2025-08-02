@@ -794,6 +794,28 @@ pub async fn get_cache_stats(
     }
 }
 
+/// 获取日志统计
+pub async fn get_log_stats(
+    State(state): State<Arc<AdminAppState>>,
+) -> Result<Json<serde_json::Value>, StatusCode> {
+    // 这里应该实现真实的日志统计查询
+    // 暂时返回模拟数据
+    let stats = serde_json::json!({
+        "total_count": 1250,
+        "error_count": 15,
+        "warn_count": 45,
+        "info_count": 890,
+        "debug_count": 300,
+        "last_24h": {
+            "total": 1250,
+            "errors": 15,
+            "warnings": 45
+        }
+    });
+    
+    Ok(Json(stats))
+}
+
 /// 健康检查
 pub async fn health_check(
     State(state): State<Arc<AdminAppState>>,

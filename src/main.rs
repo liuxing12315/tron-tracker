@@ -234,28 +234,29 @@ async fn start_api_server(
         .route("/health", get(crate::api::handlers::admin::health_check))
         
         // 仪表板 API
-        .route("/api/admin/dashboard/stats", get(crate::api::handlers::admin::get_dashboard_stats))
+        .route("/admin/dashboard/stats", get(crate::api::handlers::admin::get_dashboard_stats))
         
         // 系统配置 API
-        .route("/api/admin/config", get(crate::api::handlers::admin::get_system_config))
-        .route("/api/admin/config", put(crate::api::handlers::admin::update_system_config))
-        .route("/api/admin/config/validate", post(crate::api::handlers::admin::validate_config))
-        .route("/api/admin/config/reset", post(crate::api::handlers::admin::reset_system_config))
-        .route("/api/admin/config/history", get(crate::api::handlers::admin::get_config_history))
+        .route("/admin/config", get(crate::api::handlers::admin::get_system_config))
+        .route("/admin/config", put(crate::api::handlers::admin::update_system_config))
+        .route("/admin/config/validate", post(crate::api::handlers::admin::validate_config))
+        .route("/admin/config/reset", post(crate::api::handlers::admin::reset_system_config))
+        .route("/admin/config/history", get(crate::api::handlers::admin::get_config_history))
         
         // 日志管理 API
-        .route("/api/admin/logs", get(crate::api::handlers::admin::get_logs))
-        .route("/api/admin/logs", delete(crate::api::handlers::admin::clear_logs))
-        .route("/api/admin/logs/export", get(crate::api::handlers::admin::export_logs))
+        .route("/admin/logs", get(crate::api::handlers::admin::get_logs))
+        .route("/admin/logs", delete(crate::api::handlers::admin::clear_logs))
+        .route("/admin/logs/export", get(crate::api::handlers::admin::export_logs))
+        .route("/admin/logs/stats", get(crate::api::handlers::admin::get_log_stats))
         
         // 扫描器控制 API
-        .route("/api/admin/scanner/restart", post(crate::api::handlers::admin::restart_scanner))
-        .route("/api/admin/scanner/stop", post(crate::api::handlers::admin::stop_scanner))
-        .route("/api/admin/scanner/scan/:block_number", post(crate::api::handlers::admin::scan_block))
+        .route("/admin/scanner/restart", post(crate::api::handlers::admin::restart_scanner))
+        .route("/admin/scanner/stop", post(crate::api::handlers::admin::stop_scanner))
+        .route("/admin/scanner/scan/:block_number", post(crate::api::handlers::admin::scan_block))
         
         // 缓存管理 API
-        .route("/api/admin/cache/stats", get(crate::api::handlers::admin::get_cache_stats))
-        .route("/api/admin/cache", delete(crate::api::handlers::admin::clear_cache))
+        .route("/admin/cache/stats", get(crate::api::handlers::admin::get_cache_stats))
+        .route("/admin/cache", delete(crate::api::handlers::admin::clear_cache))
         
         // 交易查询 API
         .route("/api/v1/transactions", get(crate::api::handlers::transaction::get_transactions))

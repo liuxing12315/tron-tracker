@@ -10,7 +10,8 @@
       "Bash(pnpm install:*)",
       "Bash(pnpm run:*)",
       "Bash(mv:*)",
-      "Bash(git add:*)"
+      "Bash(git add:*)",
+      "Bash(rm:*)"
     ],
     "deny": []
   }
