@@ -145,7 +145,7 @@ curl "http://localhost:8080/api/v1/addresses/TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t/
   "name": "充值监控",
   "url": "https://your-server.com/webhook",
   "secret": "your_webhook_secret",
-  "events": ["transaction", "large_transfer"],
+  "events": ["transaction"],
   "filters": {
     "addresses": ["YOUR_WALLET_ADDRESS"],
     "min_amount": "100",

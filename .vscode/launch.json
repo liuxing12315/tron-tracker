@@ -1,0 +1,33 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Launch Backend",
+      "type": "lldb",
+      "request": "launch",
+      "program": "${workspaceFolder}/target/debug/tron-tracker",
+      "args": [],
+      "cwd": "${workspaceFolder}",
+      "stopOnEntry": false,
+      "environment": [],
+      "externalConsole": false,
+      "MIMode": "lldb",
+      "preLaunchTask": "start-backend"
+    },
+    {
+      "name": "Launch Frontend",
+      "type": "chrome",
+      "request": "launch",
+      "url": "http://localhost:5173",
+      "webRoot": "${workspaceFolder}/admin-ui",
+      "preLaunchTask": "start-frontend"
+    },
+    {
+      "name": "Launch All",
+      "type": "composite",
+      "request": "launch",
+      "stopAll": true,
+      "configurations": ["Launch Backend", "Launch Frontend"]
+    }
+  ]
+}

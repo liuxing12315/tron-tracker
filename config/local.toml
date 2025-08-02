@@ -1,7 +1,3 @@
-# TRX/USDT Tracker Default Configuration
-# This file contains sensible defaults for all configuration options
-# Override any setting by creating a config.toml file or using environment variables
-
 [database]
 url = "postgresql://liuxing:password@localhost:5432/trontracker"
 max_connections = 20
@@ -14,9 +10,9 @@ max_connections = 10
 default_ttl = 300
 
 [blockchain]
-start_block = 62800000  # Recent block number, adjust as needed
+start_block = 62800000
 batch_size = 100
-scan_interval = 3  # seconds
+scan_interval = 3
 
 [[blockchain.nodes]]
 name = "TronGrid"
@@ -49,7 +45,7 @@ max_limit = 100
 timeout = 30
 retry_attempts = 3
 retry_delay = 5
-max_payload_size = 1048576  # 1MB
+max_payload_size = 1048576
 
 [notifications.websocket]
 max_connections = 10000
@@ -58,22 +54,18 @@ message_buffer_size = 1000
 
 [auth]
 jwt_secret = "your-secret-key-change-in-production"
-token_expiry = 86400  # 24 hours
+token_expiry = 86400
 api_key_length = 32
 
 [tron]
-# Global API key for all Tron nodes (optional)
-api_key = ""
-# Default timeout for Tron API calls in seconds
 timeout = 30
 
-# Tron network nodes configuration
 [[tron.nodes]]
 name = "TronGrid"
 url = "https://api.trongrid.io"
 priority = 1
 timeout = 30
-api_key = ""  # Node-specific API key (optional)
+api_key = ""
 
 [[tron.nodes]]
 name = "TronStack"

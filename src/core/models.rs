@@ -69,7 +69,6 @@ pub struct Notification {
 // #[sqlx(type_name = "notification_event_type", rename_all = "lowercase")] // 暂时注释掉sqlx属性
 pub enum NotificationEventType {
     Transaction,
-    LargeTransfer,
     NewAddress,
     SystemAlert,
 }
@@ -384,12 +383,10 @@ mod tests {
     #[test]
     fn test_notification_event_type_serialization() {
         let transaction = NotificationEventType::Transaction;
-        let large_transfer = NotificationEventType::LargeTransfer;
         let new_address = NotificationEventType::NewAddress;
         let system_alert = NotificationEventType::SystemAlert;
 
         assert_eq!(serde_json::to_string(&transaction).unwrap(), "\"Transaction\"");
-        assert_eq!(serde_json::to_string(&large_transfer).unwrap(), "\"LargeTransfer\"");
         assert_eq!(serde_json::to_string(&new_address).unwrap(), "\"NewAddress\"");
         assert_eq!(serde_json::to_string(&system_alert).unwrap(), "\"SystemAlert\"");
     }

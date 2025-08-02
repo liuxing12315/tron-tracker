@@ -231,7 +231,6 @@ pub async fn create_webhook(
     let events: Result<Vec<NotificationEventType>, _> = request.events.iter()
         .map(|e| match e.as_str() {
             "transaction" => Ok(NotificationEventType::Transaction),
-            "large_transfer" => Ok(NotificationEventType::LargeTransfer),
             "new_address" => Ok(NotificationEventType::NewAddress),
             "system_alert" => Ok(NotificationEventType::SystemAlert),
             _ => Err(format!("Invalid event type: {}", e)),
@@ -325,7 +324,6 @@ pub async fn update_webhook(
         let parsed_events: Result<Vec<NotificationEventType>, _> = events.iter()
             .map(|e| match e.as_str() {
                 "transaction" => Ok(NotificationEventType::Transaction),
-                "large_transfer" => Ok(NotificationEventType::LargeTransfer),
                 "new_address" => Ok(NotificationEventType::NewAddress),
                 "system_alert" => Ok(NotificationEventType::SystemAlert),
                 _ => Err(format!("Invalid event type: {}", e)),

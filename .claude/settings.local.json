@@ -11,7 +11,8 @@
       "Bash(pnpm run:*)",
       "Bash(mv:*)",
       "Bash(git add:*)",
-      "Bash(rm:*)"
+      "Bash(rm:*)",
+      "Bash(git commit:*)"
     ],
     "deny": []
   }

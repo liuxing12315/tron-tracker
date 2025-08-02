@@ -438,7 +438,6 @@ impl Database {
             let events = events_str.into_iter()
                 .filter_map(|s| match s.as_str() {
                     "transaction" => Some(NotificationEventType::Transaction),
-                    "large_transfer" => Some(NotificationEventType::LargeTransfer),
                     "new_address" => Some(NotificationEventType::NewAddress),
                     "system_alert" => Some(NotificationEventType::SystemAlert),
                     _ => None,
@@ -566,7 +565,6 @@ impl Database {
             let events = events_str.into_iter()
                 .filter_map(|s| match s.as_str() {
                     "transaction" => Some(NotificationEventType::Transaction),
-                    "large_transfer" => Some(NotificationEventType::LargeTransfer),
                     "new_address" => Some(NotificationEventType::NewAddress),
                     "system_alert" => Some(NotificationEventType::SystemAlert),
                     _ => None,
