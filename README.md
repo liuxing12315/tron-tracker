@@ -1,74 +1,88 @@
-# TRX Tracker - Unified Transaction Monitoring System
+# TRX Tracker - Tron 区块链增强数据服务
 
-A high-performance, enterprise-grade TRX/USDT transaction tracking system with real-time notifications, multi-address querying, and comprehensive management capabilities.
+专注于提供 Tron 节点原生不支持功能的高性能区块链数据服务系统，包括批量地址查询、实时充值通知等核心功能。
 
-## 🎯 Overview
+## 🎯 核心价值
 
-TRX Tracker is a unified solution for monitoring TRX and USDT transactions on the Tron blockchain. Built with Rust for maximum performance and reliability, it provides real-time transaction tracking, webhook notifications, WebSocket streaming, and a modern web-based administration interface.
+TRX Tracker 填补了 Tron 节点功能空白，为开发者提供：
 
-### Key Features
+### 核心功能
 
-- **High-Performance Scanning**: Process 10,000+ transactions per second with sub-50ms response times
-- **Multi-Address Querying**: Batch query up to 100 addresses simultaneously
-- **Real-Time Notifications**: WebSocket streaming and webhook delivery for instant updates
-- **Enterprise Management**: Comprehensive admin dashboard for system configuration and monitoring
-- **Unified Architecture**: Single binary deployment with modular, maintainable codebase
+1. **批量地址交易查询** - Tron 节点无法直接提供
+   - 一次查询最多100个地址的交易记录
+   - 支持多维度筛选（时间、金额、代币类型）
+   - Redis 缓存优化，毫秒级响应
 
-## 🚀 Quick Start
+2. **实时充值通知** - 监控特定地址的充值事件
+   - WebSocket 实时推送
+   - Webhook HTTP 回调
+   - 支持 HMAC 签名验证
 
-### Prerequisites
+3. **Web 管理界面** - 完整的系统管理
+   - 实时监控面板
+   - 交易查询和分析
+   - Webhook/WebSocket 管理
+   - API 密钥管理
 
-- Rust 1.70+ 
-- PostgreSQL 14+
-- Redis 6+
-- Node.js 18+ (for admin UI)
+### 技术特点
 
-### Installation
+- **高性能**: Rust 实现，10,000+ TPS
+- **低延迟**: API < 50ms, WebSocket < 10ms  
+- **可扩展**: 模块化架构，易于扩展
+- **生产就绪**: 包含监控、日志、错误处理
 
-1. **Clone the repository**
-   ```bash
-   git clone https://github.com/liuxing12315/tron-tracker.git
-   cd tron-tracker-unified
-   ```
+## 🚀 快速开始
 
-2. **Configure the system**
-   ```bash
-   cp config/default.toml config/local.toml
-   # Edit config/local.toml with your settings
-   ```
+详细启动指南请查看 [QUICK_START.md](QUICK_START.md)
 
-3. **Start the system**
-   ```bash
-   cargo run
-   ```
+### 最简启动
 
-4. **Access the admin interface**
-   ```
-   http://localhost:3000
-   ```
+```bash
+# 1. 安装依赖
+brew install postgresql redis  # macOS
+cargo build
 
-## 📊 Architecture
+# 2. 初始化数据库
+createdb trontracker
+psql -d trontracker -f migrations/001_initial.sql
 
-TRX Tracker follows a unified, modular architecture that eliminates redundancy while maintaining clear separation of concerns:
+# 3. 启动服务
+cargo run
+
+# 4. 访问管理界面
+cd admin-ui && pnpm install && pnpm dev
+# 访问 http://localhost:5173
+```
+
+### 测试核心功能
+
+```bash
+# 批量查询地址交易
+curl -X POST http://localhost:8080/api/v1/transactions/multi-address \
+  -H "Content-Type: application/json" \
+  -d '{"addresses": "TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t,TLa2f6VPqDgRE67v1736s7bJ8Ray5wYjU7"}'
+```
+
+## 📊 系统架构
 
 ```
 ┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
-│   Admin UI      │    │   REST API      │    │   WebSocket     │
-│   (React)       │    │   (Axum)        │    │   (Axum)        │
+│   管理界面      │    │   REST API      │    │   WebSocket     │
+│   (React)       │    │   批量查询      │    │   实时推送      │
 └─────────────────┘    └─────────────────┘    └─────────────────┘
          │                       │                       │
          └───────────────────────┼───────────────────────┘
                                  │
                     ┌─────────────────┐
-                    │   Core Engine   │
+                    │   核心引擎      │
                     │   (Rust)        │
                     └─────────────────┘
                              │
          ┌───────────────────┼───────────────────┐
          │                   │                   │
 ┌─────────────────┐ ┌─────────────────┐ ┌─────────────────┐
-│   Scanner       │ │   Database      │ │   Webhook       │
-│   Service       │ │   Layer         │ │   Service       │
+│   区块扫描      │ │   数据存储      │ │   Webhook       │
+│   监控充值      │ │   PostgreSQL    │ │   HTTP 回调     │
 └─────────────────┘ └─────────────────┘ └─────────────────┘
 ```
 
@@ -103,85 +117,80 @@ nodes = [
 ]
 ```
 
-## 📡 API Reference
+## 📡 API 使用示例
 
-### REST API Endpoints
+完整 API 文档请查看 [API_DOCUMENTATION.md](API_DOCUMENTATION.md)
 
-#### Transactions
-- `GET /api/v1/transactions` - List transactions with filtering
-- `GET /api/v1/transactions/:hash` - Get specific transaction
-- `POST /api/v1/transactions/multi-address` - Multi-address batch query
-
-#### Addresses  
-- `GET /api/v1/addresses/:address` - Get address information
-- `GET /api/v1/addresses/:address/transactions` - Get address transactions
-
-#### Webhooks
-- `GET /api/v1/webhooks` - List webhooks
-- `POST /api/v1/webhooks` - Create webhook
-- `PUT /api/v1/webhooks/:id` - Update webhook
-- `DELETE /api/v1/webhooks/:id` - Delete webhook
-
-#### WebSocket
-- `GET /ws` - WebSocket connection endpoint
-- `GET /api/v1/websockets/connections` - List active connections
-- `GET /api/v1/websockets/stats` - Get WebSocket statistics
-
-### Multi-Address Query Example
+### 批量地址查询（核心功能）
 
 ```bash
+# 查询多个地址的 USDT 交易
 curl -X POST http://localhost:8080/api/v1/transactions/multi-address \
   -H "Content-Type: application/json" \
   -d '{
-    "addresses": [
-      "TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t",
-      "TLa2f6VPqDgRE67v1736s7bJ8Ray5wYjU7"
-    ],
-    "page": 1,
-    "limit": 50,
-    "status": "success"
+    "addresses": "TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t,TLa2f6VPqDgRE67v1736s7bJ8Ray5wYjU7",
+    "token": "USDT",
+    "limit": 50
   }'
 ```
 
-### WebSocket Subscription
+### WebSocket 实时监控
 
 ```javascript
 const ws = new WebSocket('ws://localhost:8080/ws');
 
 ws.onopen = () => {
-  // Subscribe to transaction events for specific addresses
+  // 订阅地址的充值通知
   ws.send(JSON.stringify({
     type: 'subscribe',
-    events: ['transaction'],
-    filters: {
-      addresses: ['TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t'],
+    subscription: {
+      event_types: ['transaction'],
+      addresses: ['YOUR_WALLET_ADDRESS'],
       tokens: ['USDT']
     }
   }));
 };
 
 ws.onmessage = (event) => {
-  const notification = JSON.parse(event.data);
-  console.log('New transaction:', notification);
+  const data = JSON.parse(event.data);
+  if (data.type === 'TransactionNotification') {
+    console.log('收到充值:', data.transaction);
+  }
 };
 ```
 
-## 🎛️ Admin Dashboard
+### Webhook 配置
 
-The admin dashboard provides comprehensive system management capabilities:
-
-### Dashboard Features
-- **Real-time Metrics**: Transaction volume, success rates, system health
-- **Transaction Search**: Advanced filtering and multi-address queries  
-- **Webhook Management**: Create, configure, and monitor webhook endpoints
-- **WebSocket Monitoring**: Track active connections and message flow
-- **API Key Management**: Generate and manage API access credentials
-- **System Configuration**: Node management, scanning parameters, database settings
-- **Log Monitoring**: Real-time log viewing with filtering and search
-
-### Access the Dashboard
+```bash
+# 创建 Webhook 接收充值通知
+curl -X POST http://localhost:8080/api/v1/webhooks \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "充值通知",
+    "url": "https://your-server.com/webhook",
+    "secret": "your_secret",
+    "events": ["transaction"],
+    "filters": {
+      "addresses": ["YOUR_WALLET_ADDRESS"],
+      "min_amount": "100"
+    }
+  }'
 ```
-http://localhost:3000
+
+## 🎛️ 管理界面
+
+基于 React + TailwindCSS 的现代化管理界面：
+
+### 功能模块
+- **监控面板**: 实时系统状态、交易统计、性能指标
+- **交易管理**: 批量查询、交易搜索、导出功能
+- **通知配置**: Webhook 管理、WebSocket 连接监控
+- **系统设置**: API 密钥、扫描参数、节点配置
+
+### 访问地址
+```
+开发环境: http://localhost:5173
+生产环境: http://localhost:3000
 ```
 
 ## 🔐 Security
@@ -198,20 +207,20 @@ All API endpoints support multiple authentication methods:
 - **SSL/TLS**: HTTPS-only webhook delivery
 - **Retry Logic**: Exponential backoff for failed deliveries
 
-## 📈 Performance
+## 📈 性能指标
 
-### Benchmarks
-- **Transaction Processing**: 10,000+ TPS
-- **API Response Time**: < 50ms average
-- **WebSocket Latency**: < 10ms
-- **Multi-Address Query**: 100 addresses in < 200ms
-- **Memory Usage**: < 1GB for 10K connections
+### 测试结果
+- **交易处理**: 10,000+ TPS
+- **批量查询**: 100个地址 < 200ms
+- **API 响应**: 平均 < 50ms
+- **WebSocket 延迟**: < 10ms
+- **内存占用**: < 1GB (1万连接)
 
-### Optimization Features
-- **Connection Pooling**: Efficient database connection management
-- **Redis Caching**: Multi-layer caching for frequently accessed data
-- **Batch Processing**: Optimized bulk operations
-- **Async Architecture**: Non-blocking I/O throughout the system
+### 优化特性
+- **连接池**: 数据库连接复用
+- **Redis 缓存**: 多层缓存架构
+- **批量处理**: 100块/批扫描
+- **异步架构**: 全异步非阻塞
 
 ## 🚀 Deployment
 
@@ -270,13 +279,12 @@ cargo run -- --config config/development.toml
 4. Add tests
 5. Submit a pull request
 
-## 📚 Documentation
+## 📚 项目文档
 
-- [API Documentation](docs/api.md) - Complete REST API reference
-- [WebSocket Protocol](docs/websocket.md) - WebSocket message formats and events
-- [Configuration Guide](docs/configuration.md) - Detailed configuration options
-- [Deployment Guide](docs/deployment.md) - Production deployment instructions
-- [Development Guide](docs/development.md) - Setup and contribution guidelines
+- [PROJECT_OVERVIEW.md](PROJECT_OVERVIEW.md) - 项目概览和功能说明
+- [QUICK_START.md](QUICK_START.md) - 快速启动指南
+- [API_DOCUMENTATION.md](API_DOCUMENTATION.md) - 完整 API 文档
+- [UNIFIED_ARCHITECTURE.md](docs/UNIFIED_ARCHITECTURE.md) - 架构设计文档
 
 ## 🆘 Support
 
@@ -302,5 +310,5 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ---
 
-**TRX Tracker** - Built with ❤️ by [Manus AI](https://manus.ai)
+**TRX Tracker** - 专注于 Tron 节点功能增强的区块链数据服务
 
